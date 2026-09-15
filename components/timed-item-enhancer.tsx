@@ -100,7 +100,7 @@ export default function TimedItemEnhancer() {
 
     scan();
     const observer = new MutationObserver(scan);
-    observer.observe(document.body, { childList: true, subtree: true });
+    observer.observe(document.body, { childList: true, subtree: true, characterData: true });
     return () => observer.disconnect();
   }, []);
 
@@ -108,12 +108,14 @@ export default function TimedItemEnhancer() {
     const originalFetch = window.fetch.bind(window);
     window.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
       let nextInit = init;
+      let creatingTimedProduct = false;
       const url = typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url;
 
       if (url.includes("/api/admin") && typeof init?.body === "string") {
         try {
           const body = JSON.parse(init.body);
           if (body?.action === "create_product" && body?.payload) {
+            creatingTimedProduct = true;
             const duration = (document.getElementById("timed-effect-duration") as HTMLSelectElement | null)?.value || "";
             const effectText = (document.getElementById("timed-effect-text") as HTMLInputElement | null)?.value?.trim() || "";
             body.payload.effect_duration_hours = duration ? Number(duration) : null;
@@ -126,6 +128,14 @@ export default function TimedItemEnhancer() {
       }
 
       const response = await originalFetch(input, nextInit);
+
+      if (creatingTimedProduct && response.ok) {
+        const durationSelect = document.getElementById("timed-effect-duration") as HTMLSelectElement | null;
+        const effectInput = document.getElementById("timed-effect-text") as HTMLInputElement | null;
+        if (durationSelect) durationSelect.value = "";
+        if (effectInput) effectInput.value = "";
+      }
+
       if (url.includes("/rest/v1/rpc/use_inventory_item") && response.ok) {
         window.setTimeout(loadEffects, 250);
       }
