@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import StoreActionEnhancer from "@/components/store-action-enhancer";
 import "./globals.css";
+import "./store-actions.css";
 
 export const metadata: Metadata = {
   title: "선수촌 매점",
