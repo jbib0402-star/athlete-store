@@ -9,17 +9,46 @@ function clients() {
   return { userClient: createClient(url, anon), admin: createClient(url, service, { auth: { autoRefreshToken: false, persistSession: false } }) };
 }
 
+type LotteryPrize = { label: string; points: number; chance: number };
+
 function parseTimedEffect(payload: Record<string, unknown>) {
   const effectText = String(payload.effect_text || "").trim();
   const rawDuration = payload.effect_duration_hours;
   const effectDuration = rawDuration == null || rawDuration === "" ? null : Number(rawDuration);
-  if (effectDuration !== null && ![6, 12, 24].includes(effectDuration)) {
-    return { error: "아이템 효과 시간은 6시간, 12시간, 24시간 중에서 선택해주세요." } as const;
+  if (effectDuration !== null && ![6, 8, 12, 24].includes(effectDuration)) {
+    return { error: "아이템 효과 시간은 6시간, 8시간, 24시간 중에서 선택해주세요." } as const;
   }
   if (effectDuration !== null && !effectText) {
     return { error: "시간제 아이템은 효과 문구를 입력해주세요." } as const;
   }
   return { effectText, effectDuration } as const;
+}
+
+function parseLotteryConfig(payload: Record<string, unknown>) {
+  const specialType = payload.special_type === "lottery" ? "lottery" : "standard";
+  if (specialType !== "lottery") return { specialType, lotteryPrizes: null, lotteryDailyLimit: 3 } as const;
+
+  if (!Array.isArray(payload.lottery_prizes) || payload.lottery_prizes.length < 1 || payload.lottery_prizes.length > 10) {
+    return { error: "복권 당첨 항목은 1개 이상 10개 이하로 설정해주세요." } as const;
+  }
+
+  const prizes: LotteryPrize[] = [];
+  for (const item of payload.lottery_prizes) {
+    if (!item || typeof item !== "object") return { error: "복권 당첨 설정을 확인해주세요." } as const;
+    const row = item as Record<string, unknown>;
+    const label = String(row.label || "").trim().slice(0, 40);
+    const points = Math.floor(Number(row.points));
+    const chance = Number(row.chance);
+    if (!label) return { error: "모든 복권 결과에 문구를 입력해주세요." } as const;
+    if (!Number.isFinite(points) || points < 0 || points > 1000000) return { error: "당첨 포인트를 확인해주세요." } as const;
+    if (!Number.isFinite(chance) || chance < 0 || chance > 100) return { error: "당첨 확률은 0~100 사이로 입력해주세요." } as const;
+    prizes.push({ label, points, chance });
+  }
+
+  const total = prizes.reduce((sum, prize) => sum + prize.chance, 0);
+  if (Math.abs(total - 100) > 0.001) return { error: `당첨 확률의 합계는 100%여야 합니다. 현재 ${total}%입니다.` } as const;
+
+  return { specialType, lotteryPrizes: prizes, lotteryDailyLimit: 3 } as const;
 }
 
 export async function POST(request: Request) {
@@ -74,9 +103,12 @@ export async function POST(request: Request) {
     }
 
     if (action === "create_product") {
-      const timed = parseTimedEffect(payload);
+      const lottery = parseLotteryConfig(payload as Record<string, unknown>);
+      if ("error" in lottery) return NextResponse.json({ error: lottery.error }, { status: 400 });
+      const timed = lottery.specialType === "lottery" ? { effectText: "", effectDuration: null } : parseTimedEffect(payload as Record<string, unknown>);
       if ("error" in timed) return NextResponse.json({ error: timed.error }, { status: 400 });
-      const record = {
+
+      const record: Record<string, unknown> = {
         name: String(payload.name || "").trim(),
         description: String(payload.description || "").trim(),
         price: Math.max(0, Number(payload.price) || 0),
@@ -87,21 +119,28 @@ export async function POST(request: Request) {
         is_consumable: payload.is_consumable !== false,
         is_active: true,
         effect_text: timed.effectDuration === null ? "" : timed.effectText,
-        effect_duration_hours: timed.effectDuration
+        effect_duration_hours: timed.effectDuration,
+        special_type: lottery.specialType
       };
+      if (lottery.specialType === "lottery") {
+        record.lottery_daily_limit = lottery.lotteryDailyLimit;
+        record.lottery_prizes = lottery.lotteryPrizes;
+      }
       if (!record.name || !record.description) return NextResponse.json({ error: "상품명과 설명을 입력해주세요." }, { status: 400 });
       const { error } = await admin.from("products").insert(record);
       if (error) return NextResponse.json({ error: error.message }, { status: 400 });
-      return NextResponse.json({ message: "상품을 등록했습니다." });
+      return NextResponse.json({ message: lottery.specialType === "lottery" ? "일일복권을 등록했습니다." : "상품을 등록했습니다." });
     }
 
     if (action === "update_product") {
       const id = String(payload.id || "");
       if (!id) return NextResponse.json({ error: "수정할 상품을 확인해주세요." }, { status: 400 });
-      const timed = parseTimedEffect(payload);
+      const lottery = parseLotteryConfig(payload as Record<string, unknown>);
+      if ("error" in lottery) return NextResponse.json({ error: lottery.error }, { status: 400 });
+      const timed = lottery.specialType === "lottery" ? { effectText: "", effectDuration: null } : parseTimedEffect(payload as Record<string, unknown>);
       if ("error" in timed) return NextResponse.json({ error: timed.error }, { status: 400 });
 
-      const record = {
+      const record: Record<string, unknown> = {
         name: String(payload.name || "").trim(),
         description: String(payload.description || "").trim(),
         price: Math.max(0, Number(payload.price) || 0),
@@ -111,16 +150,21 @@ export async function POST(request: Request) {
         purchase_limit: payload.purchase_limit == null || payload.purchase_limit === "" ? null : Math.max(1, Number(payload.purchase_limit)),
         is_consumable: payload.is_consumable !== false,
         effect_text: timed.effectDuration === null ? "" : timed.effectText,
-        effect_duration_hours: timed.effectDuration
+        effect_duration_hours: timed.effectDuration,
+        special_type: lottery.specialType
       };
+      if (lottery.specialType === "lottery") {
+        record.lottery_daily_limit = lottery.lotteryDailyLimit;
+        record.lottery_prizes = lottery.lotteryPrizes;
+      }
       if (!record.name || !record.description) return NextResponse.json({ error: "상품명과 설명을 입력해주세요." }, { status: 400 });
 
-      const { data: category } = await admin.from("store_categories").select("id").eq("name", record.category).maybeSingle();
+      const { data: category } = await admin.from("store_categories").select("id").eq("name", String(record.category)).maybeSingle();
       if (!category) return NextResponse.json({ error: "등록되지 않은 카테고리입니다." }, { status: 400 });
 
       const { error } = await admin.from("products").update(record).eq("id", id);
       if (error) return NextResponse.json({ error: error.message }, { status: 400 });
-      return NextResponse.json({ message: "상품 정보를 수정했습니다." });
+      return NextResponse.json({ message: lottery.specialType === "lottery" ? "일일복권 설정을 수정했습니다." : "상품 정보를 수정했습니다." });
     }
 
     if (action === "toggle_product") {
