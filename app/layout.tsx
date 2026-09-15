@@ -13,6 +13,7 @@ import LotteryRuntimeFix from "@/components/lottery-runtime-fix";
 import LotteryConfigBridge from "@/components/lottery-config-bridge";
 import GiftArrivalNotifier from "@/components/gift-arrival-notifier";
 import AdminMemberPageRestore from "@/components/admin-member-page-restore";
+import AgilityTrainingGame from "@/components/agility-training-game";
 import "./globals.css";
 import "./store-actions.css";
 import "./auth-entry.css";
@@ -23,6 +24,7 @@ import "./admin-effects.css";
 import "./profile-history.css";
 import "./lottery.css";
 import "./gift-arrival.css";
+import "./training-game.css";
 
 export const metadata: Metadata = {
   title: "선수촌 매점",
@@ -33,7 +35,7 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="ko">
-      <body>{children}<StoreActionEnhancer/><AuthEntryEnhancer/><TimedItemEnhancer/><TimedRuleCorrectionEnhancer/><CategoryEnhancer/><TransferRecipientEnhancer/><AdminMaintenanceEnhancer/><AdminEffectManager/><ProfileHistoryEnhancer/><LotteryEnhancer/><LotteryRuntimeFix/><LotteryConfigBridge/><GiftArrivalNotifier/><AdminMemberPageRestore/></body>
+      <body>{children}<StoreActionEnhancer/><AuthEntryEnhancer/><TimedItemEnhancer/><TimedRuleCorrectionEnhancer/><CategoryEnhancer/><TransferRecipientEnhancer/><AdminMaintenanceEnhancer/><AdminEffectManager/><ProfileHistoryEnhancer/><LotteryEnhancer/><LotteryRuntimeFix/><LotteryConfigBridge/><GiftArrivalNotifier/><AdminMemberPageRestore/><AgilityTrainingGame/></body>
     </html>
   );
 }
