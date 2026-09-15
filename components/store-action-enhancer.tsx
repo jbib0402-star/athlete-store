@@ -11,6 +11,7 @@ type ShopProduct = {
 
 type GiftMember = {
   id: string;
+  username: string;
   character_name: string;
   sport: string | null;
 };
@@ -31,6 +32,7 @@ export default function StoreActionEnhancer() {
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [giftProduct, setGiftProduct] = useState<ShopProduct | null>(null);
   const [recipientId, setRecipientId] = useState("");
+  const [recipientQuery, setRecipientQuery] = useState("");
   const [sending, setSending] = useState(false);
   const [notice, setNotice] = useState<{ text: string; error?: boolean } | null>(null);
 
@@ -48,7 +50,7 @@ export default function StoreActionEnhancer() {
 
     const [productsRes, membersRes, inventoryRes] = await Promise.all([
       supabase.from("products").select("id,name,price").eq("is_active", true),
-      supabase.from("profiles").select("id,character_name,sport").order("character_name"),
+      supabase.from("profiles").select("id,username,character_name,sport").order("character_name"),
       supabase.from("inventory").select("id,product_name,purchased_at,used_at,gift_from_name").eq("user_id", userId).order("purchased_at", { ascending: false })
     ]);
 
@@ -64,6 +66,23 @@ export default function StoreActionEnhancer() {
     return () => data.subscription.unsubscribe();
   }, [supabase, loadData]);
 
+  const availableMembers = useMemo(
+    () => members.filter(member => member.id !== currentUserId),
+    [members, currentUserId]
+  );
+
+  const recipientSuggestions = useMemo(() => {
+    const raw = recipientQuery.trim().toLowerCase();
+    if (!raw) return [];
+    const usernameQuery = raw.replace(/^@/, "");
+    return availableMembers
+      .filter(member =>
+        member.character_name.toLowerCase().includes(raw) ||
+        member.username.toLowerCase().includes(usernameQuery)
+      )
+      .slice(0, 8);
+  }, [recipientQuery, availableMembers]);
+
   const buyNow = useCallback(async (product: ShopProduct) => {
     if (!supabase) return;
     if (!window.confirm(`${product.name}을(를) 바로 구매할까요?\n구매 즉시 내 보관함으로 이동합니다.`)) return;
@@ -76,24 +95,45 @@ export default function StoreActionEnhancer() {
   const openGift = useCallback((product: ShopProduct) => {
     setGiftProduct(product);
     setRecipientId("");
+    setRecipientQuery("");
+  }, []);
+
+  const chooseRecipient = useCallback((member: GiftMember) => {
+    setRecipientId(member.id);
+    setRecipientQuery(member.character_name);
   }, []);
 
   const sendGift = useCallback(async () => {
-    if (!supabase || !giftProduct || !recipientId) return;
-    const recipient = members.find(member => member.id === recipientId);
-    if (!recipient) return;
+    if (!supabase || !giftProduct) return;
+
+    let recipient = recipientId ? availableMembers.find(member => member.id === recipientId) : undefined;
+    if (!recipient) {
+      const raw = recipientQuery.trim();
+      const rawLower = raw.toLowerCase();
+      const usernameQuery = rawLower.replace(/^@/, "");
+      const exactMatches = availableMembers.filter(member =>
+        member.character_name.trim().toLowerCase() === rawLower ||
+        member.username.toLowerCase() === usernameQuery
+      );
+
+      if (exactMatches.length === 1) recipient = exactMatches[0];
+      else if (exactMatches.length > 1) return showNotice("같은 닉네임이 있습니다. @아이디를 입력해주세요.", true);
+      else return showNotice("일치하는 캐릭터를 찾을 수 없습니다. 닉네임이나 @아이디를 확인해주세요.", true);
+    }
+
     setSending(true);
     const { error } = await supabase.rpc("gift_product", {
       target_product_id: giftProduct.id,
-      recipient_id: recipientId
+      recipient_id: recipient.id
     });
     setSending(false);
     if (error) return showNotice(error.message, true);
     setGiftProduct(null);
     setRecipientId("");
+    setRecipientQuery("");
     showNotice(`${recipient.character_name}에게 선물을 보냈습니다.`);
     window.setTimeout(() => window.location.reload(), 450);
-  }, [supabase, giftProduct, recipientId, members, showNotice]);
+  }, [supabase, giftProduct, recipientId, recipientQuery, availableMembers, showNotice]);
 
   useEffect(() => {
     if (!products.length) return;
@@ -181,14 +221,26 @@ export default function StoreActionEnhancer() {
         <h2 id="gift-modal-title">{giftProduct.name} 선물하기</h2>
         <p>상품 가격 <strong>{giftProduct.price.toLocaleString("ko-KR")} P</strong>가 내 포인트에서 차감되고 상대방 보관함으로 바로 지급됩니다.</p>
         <label>선물 받을 캐릭터
-          <select value={recipientId} onChange={event => setRecipientId(event.target.value)} disabled={sending}>
-            <option value="">캐릭터 선택</option>
-            {members.filter(member => member.id !== currentUserId).map(member => <option key={member.id} value={member.id}>{member.character_name} · {member.sport || "종목 미등록"}</option>)}
-          </select>
+          <div className="gift-recipient-search">
+            <input
+              value={recipientQuery}
+              onChange={event => { setRecipientQuery(event.target.value); setRecipientId(""); }}
+              placeholder="닉네임 또는 @아이디 입력"
+              autoComplete="off"
+              disabled={sending}
+            />
+            {recipientQuery.trim() && !recipientId && <div className="gift-suggestions">
+              {recipientSuggestions.length ? recipientSuggestions.map(member => <button type="button" key={member.id} onClick={() => chooseRecipient(member)}>
+                <strong>{member.character_name}</strong>
+                <span>@{member.username}{member.sport ? ` · ${member.sport}` : ""}</span>
+              </button>) : <div className="gift-no-result">일치하는 캐릭터가 없습니다.</div>}
+            </div>}
+          </div>
         </label>
+        {recipientId && <div className="gift-selected">받는 사람: <strong>{availableMembers.find(member => member.id === recipientId)?.character_name}</strong></div>}
         <div className="gift-modal-actions">
           <button type="button" className="button ghost" disabled={sending} onClick={() => setGiftProduct(null)}>취소</button>
-          <button type="button" className="button primary" disabled={!recipientId || sending} onClick={sendGift}>{sending ? "선물 중…" : "선물 보내기"}</button>
+          <button type="button" className="button primary" disabled={!recipientQuery.trim() || sending} onClick={sendGift}>{sending ? "선물 중…" : "선물 보내기"}</button>
         </div>
       </section>
     </div>}
