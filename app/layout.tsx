@@ -7,6 +7,7 @@ import CategoryEnhancer from "@/components/category-enhancer";
 import TransferRecipientEnhancer from "@/components/transfer-recipient-enhancer";
 import AdminMaintenanceEnhancer from "@/components/admin-maintenance-enhancer";
 import AdminEffectManager from "@/components/admin-effect-manager";
+import AdminInventoryManager from "@/components/admin-inventory-manager";
 import ProfileHistoryEnhancer from "@/components/profile-history-enhancer";
 import LotteryEnhancer from "@/components/lottery-enhancer";
 import LotteryRuntimeFix from "@/components/lottery-runtime-fix";
@@ -18,6 +19,7 @@ import "./timed-effects.css";
 import "./catalog-tools.css";
 import "./admin-maintenance.css";
 import "./admin-effects.css";
+import "./admin-inventory.css";
 import "./profile-history.css";
 import "./lottery.css";
 
@@ -30,7 +32,7 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="ko">
-      <body>{children}<StoreActionEnhancer/><AuthEntryEnhancer/><TimedItemEnhancer/><TimedRuleCorrectionEnhancer/><CategoryEnhancer/><TransferRecipientEnhancer/><AdminMaintenanceEnhancer/><AdminEffectManager/><ProfileHistoryEnhancer/><LotteryEnhancer/><LotteryRuntimeFix/><LotteryConfigBridge/></body>
+      <body>{children}<StoreActionEnhancer/><AuthEntryEnhancer/><TimedItemEnhancer/><TimedRuleCorrectionEnhancer/><CategoryEnhancer/><TransferRecipientEnhancer/><AdminMaintenanceEnhancer/><AdminEffectManager/><AdminInventoryManager/><ProfileHistoryEnhancer/><LotteryEnhancer/><LotteryRuntimeFix/><LotteryConfigBridge/></body>
     </html>
   );
 }
