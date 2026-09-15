@@ -94,6 +94,45 @@ export async function POST(request: Request) {
       return NextResponse.json({ message: `${target.character_name} 계정을 탈퇴 처리했습니다.` });
     }
 
+    if (action === "list_member_inventory") {
+      const userId = String(payload.user_id || "");
+      if (!userId) return NextResponse.json({ error: "회원을 확인해주세요." }, { status: 400 });
+
+      const { data: target, error: targetError } = await admin.from("profiles").select("id,username,character_name").eq("id", userId).maybeSingle();
+      if (targetError) return NextResponse.json({ error: targetError.message }, { status: 400 });
+      if (!target) return NextResponse.json({ error: "회원을 찾을 수 없습니다." }, { status: 404 });
+
+      const { data: items, error: inventoryError } = await admin
+        .from("inventory")
+        .select("id,product_id,product_name,product_image_url,purchased_at,gift_from_name")
+        .eq("user_id", userId)
+        .is("used_at", null)
+        .order("purchased_at", { ascending: false });
+      if (inventoryError) return NextResponse.json({ error: inventoryError.message }, { status: 400 });
+
+      return NextResponse.json({ member: target, items: items || [] });
+    }
+
+    if (action === "delete_inventory_item") {
+      const inventoryId = String(payload.inventory_id || "");
+      if (!inventoryId) return NextResponse.json({ error: "삭제할 아이템을 확인해주세요." }, { status: 400 });
+
+      const { data: item, error: itemError } = await admin
+        .from("inventory")
+        .select("id,user_id,product_name,used_at")
+        .eq("id", inventoryId)
+        .maybeSingle();
+      if (itemError) return NextResponse.json({ error: itemError.message }, { status: 400 });
+      if (!item) return NextResponse.json({ error: "아이템을 찾을 수 없습니다." }, { status: 404 });
+      if (item.used_at) return NextResponse.json({ error: "이미 사용한 아이템은 삭제할 수 없습니다." }, { status: 400 });
+
+      const { data: owner } = await admin.from("profiles").select("character_name").eq("id", item.user_id).maybeSingle();
+      const { error: deleteError } = await admin.from("inventory").delete().eq("id", inventoryId).is("used_at", null);
+      if (deleteError) return NextResponse.json({ error: deleteError.message }, { status: 400 });
+
+      return NextResponse.json({ message: `${owner?.character_name || "회원"}의 '${item.product_name}' 아이템을 삭제했습니다.` });
+    }
+
     if (action === "adjust_points") {
       const userId = String(payload.user_id || ""); const amount = Number(payload.amount) || 0;
       if (!userId || !amount) return NextResponse.json({ error: "대상과 포인트를 확인해주세요." }, { status: 400 });
