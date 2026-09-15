@@ -26,6 +26,15 @@ type AdminMember = {
   role: "member" | "admin";
 };
 
+type MemberInventoryItem = {
+  id: string;
+  product_id: string | null;
+  product_name: string;
+  product_image_url: string | null;
+  purchased_at: string;
+  gift_from_name: string | null;
+};
+
 type EditForm = {
   name: string;
   description: string;
@@ -39,6 +48,10 @@ type EditForm = {
   effect_text: string;
 };
 
+function formatInventoryDate(value: string) {
+  return new Intl.DateTimeFormat("ko-KR", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" }).format(new Date(value));
+}
+
 export default function AdminMaintenanceEnhancer() {
   const supabase = useMemo(() => getSupabaseBrowser(), []);
   const [isAdmin, setIsAdmin] = useState(false);
@@ -50,6 +63,10 @@ export default function AdminMaintenanceEnhancer() {
   const [editForm, setEditForm] = useState<EditForm | null>(null);
   const [editFile, setEditFile] = useState<File | null>(null);
   const [deletingMember, setDeletingMember] = useState<AdminMember | null>(null);
+  const [inventoryMember, setInventoryMember] = useState<AdminMember | null>(null);
+  const [memberInventory, setMemberInventory] = useState<MemberInventoryItem[]>([]);
+  const [inventoryLoading, setInventoryLoading] = useState(false);
+  const [deletingInventoryId, setDeletingInventoryId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<{ text: string; error?: boolean } | null>(null);
 
@@ -136,12 +153,30 @@ export default function AdminMaintenanceEnhancer() {
         const text = row.textContent || "";
         const username = text.match(/@([a-z0-9._-]{3,30})/i)?.[1]?.toLowerCase();
         const member = members.find(item => item.username.toLowerCase() === username);
-        const existing = row.querySelector<HTMLButtonElement>(".admin-member-delete-trigger");
-        if (!member || member.role !== "member" || member.id === currentUserId) {
-          existing?.remove();
+        const inventoryButton = row.querySelector<HTMLButtonElement>(".admin-member-inventory-trigger");
+        const deleteButton = row.querySelector<HTMLButtonElement>(".admin-member-delete-trigger");
+
+        if (!member) {
+          inventoryButton?.remove();
+          deleteButton?.remove();
           return;
         }
-        let button = existing;
+
+        let itemButton = inventoryButton;
+        if (!itemButton) {
+          itemButton = document.createElement("button");
+          itemButton.type = "button";
+          itemButton.className = "button outline small admin-member-inventory-trigger";
+          itemButton.textContent = "아이템";
+          row.appendChild(itemButton);
+        }
+        itemButton.onclick = () => { void openMemberInventory(member); };
+
+        if (member.role !== "member" || member.id === currentUserId) {
+          deleteButton?.remove();
+          return;
+        }
+        let button = deleteButton;
         if (!button) {
           button = document.createElement("button");
           button.type = "button";
@@ -173,6 +208,36 @@ export default function AdminMaintenanceEnhancer() {
     const data = await response.json();
     if (!response.ok) throw new Error(data.error || "요청을 처리하지 못했습니다.");
     return data;
+  }
+
+  async function openMemberInventory(member: AdminMember) {
+    setInventoryMember(member);
+    setMemberInventory([]);
+    setInventoryLoading(true);
+    try {
+      const data = await adminRequest("list_member_inventory", { user_id: member.id });
+      setMemberInventory((data.items || []) as MemberInventoryItem[]);
+    } catch (error) {
+      showNotice(error instanceof Error ? error.message : "보관함을 불러오지 못했습니다.", true);
+      setInventoryMember(null);
+    } finally {
+      setInventoryLoading(false);
+    }
+  }
+
+  async function deleteInventoryItem(item: MemberInventoryItem) {
+    if (!inventoryMember) return;
+    if (!window.confirm(`${inventoryMember.character_name}의 '${item.product_name}' 아이템을 삭제할까요?\n포인트는 환불되지 않으며 이 작업은 되돌릴 수 없습니다.`)) return;
+    setDeletingInventoryId(item.id);
+    try {
+      const data = await adminRequest("delete_inventory_item", { inventory_id: item.id });
+      showNotice(data.message || "아이템을 삭제했습니다.");
+      setMemberInventory(current => current.filter(row => row.id !== item.id));
+    } catch (error) {
+      showNotice(error instanceof Error ? error.message : "아이템을 삭제하지 못했습니다.", true);
+    } finally {
+      setDeletingInventoryId(null);
+    }
   }
 
   async function saveProduct(event: React.FormEvent) {
@@ -264,7 +329,7 @@ export default function AdminMaintenanceEnhancer() {
               <label>효과 지속시간<select value={editForm.effect_duration_hours} onChange={event => setEditForm(value => value ? { ...value, effect_duration_hours: event.target.value } : value)}>
                 <option value="">없음 · 일반 아이템</option>
                 <option value="6">6시간</option>
-                <option value="12">12시간</option>
+                <option value="8">8시간</option>
                 <option value="24">24시간</option>
               </select></label>
               <label>효과 문구<input maxLength={120} value={editForm.effect_text} onChange={event => setEditForm(value => value ? { ...value, effect_text: event.target.value } : value)} placeholder="예: 야간 외출 허용" /></label>
@@ -275,6 +340,23 @@ export default function AdminMaintenanceEnhancer() {
             <button className="button primary" disabled={busy}>{busy ? "저장 중…" : "수정 저장"}</button>
           </div>
         </form>
+      </section>
+    </div>}
+
+    {inventoryMember && <div className="admin-maintenance-backdrop" onMouseDown={() => !deletingInventoryId && setInventoryMember(null)}>
+      <section className="admin-maintenance-modal member-inventory-modal" role="dialog" aria-modal="true" aria-labelledby="member-inventory-title" onMouseDown={event => event.stopPropagation()}>
+        <div className="admin-maintenance-kicker">LOCKER MANAGEMENT</div>
+        <h2 id="member-inventory-title">{inventoryMember.character_name} 보관함</h2>
+        <p className="member-inventory-subtitle">@{inventoryMember.username} · 현재 보관 중인 미사용 아이템만 표시됩니다.</p>
+        {inventoryLoading ? <div className="member-inventory-empty">보관함을 불러오는 중입니다.</div> : memberInventory.length ? <div className="member-inventory-list">
+          {memberInventory.map(item => <article className="member-inventory-row" key={item.id}>
+            <div className="member-inventory-thumb">{item.product_image_url ? <img src={item.product_image_url} alt="" /> : <span>ITEM</span>}</div>
+            <div className="member-inventory-info"><strong>{item.product_name}</strong><span>{formatInventoryDate(item.purchased_at)} 보관{item.gift_from_name ? ` · ${item.gift_from_name}에게 선물 받음` : ""}</span></div>
+            <button type="button" className="button danger small" disabled={deletingInventoryId === item.id} onClick={() => deleteInventoryItem(item)}>{deletingInventoryId === item.id ? "삭제 중…" : "삭제"}</button>
+          </article>)}
+        </div> : <div className="member-inventory-empty">현재 보관 중인 아이템이 없습니다.</div>}
+        <div className="admin-maintenance-warning member-inventory-warning">아이템을 삭제해도 구매·포인트·사용 기록은 수정되지 않으며 포인트는 환불되지 않습니다.</div>
+        <div className="admin-maintenance-actions"><button type="button" className="button ghost" disabled={Boolean(deletingInventoryId)} onClick={() => setInventoryMember(null)}>닫기</button></div>
       </section>
     </div>}
 
