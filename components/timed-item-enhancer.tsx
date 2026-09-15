@@ -4,11 +4,22 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { getSupabaseBrowser } from "@/lib/supabase";
 
-type ActiveEffect = {
+type RawActiveEffect = {
   id: string;
+  product_id: string | null;
   product_name: string;
   effect_text: string | null;
+  effect_duration_hours: number | null;
   effect_expires_at: string | null;
+};
+
+type ActiveEffect = {
+  id: string;
+  key: string;
+  product_name: string;
+  effect_text: string | null;
+  effect_expires_at: string;
+  stack_count: number;
 };
 
 type ActivationNotice = {
@@ -29,6 +40,7 @@ export default function TimedItemEnhancer() {
   const supabase = useMemo(() => getSupabaseBrowser(), []);
   const [effects, setEffects] = useState<ActiveEffect[]>([]);
   const [activationNotice, setActivationNotice] = useState<ActivationNotice | null>(null);
+  const [limitNotice, setLimitNotice] = useState<string | null>(null);
   const [now, setNow] = useState(() => Date.now());
   const [balancePanel, setBalancePanel] = useState<HTMLElement | null>(null);
   const [mounted, setMounted] = useState(false);
@@ -41,13 +53,41 @@ export default function TimedItemEnhancer() {
 
     const { data } = await supabase
       .from("inventory")
-      .select("id,product_name,effect_text,effect_expires_at")
+      .select("id,product_id,product_name,effect_text,effect_duration_hours,effect_expires_at")
       .eq("user_id", userId)
       .not("effect_expires_at", "is", null)
       .gt("effect_expires_at", new Date().toISOString())
       .order("effect_expires_at", { ascending: true });
 
-    setEffects((data || []) as ActiveEffect[]);
+    const grouped = new Map<string, ActiveEffect>();
+    for (const row of (data || []) as RawActiveEffect[]) {
+      if (!row.effect_expires_at) continue;
+      const key = row.product_id || `${row.product_name}::${row.effect_text || ""}::${row.effect_duration_hours || 0}`;
+      const current = grouped.get(key);
+      if (!current) {
+        grouped.set(key, {
+          id: row.id,
+          key,
+          product_name: row.product_name,
+          effect_text: row.effect_text,
+          effect_expires_at: row.effect_expires_at,
+          stack_count: 1
+        });
+        continue;
+      }
+
+      const currentExpires = new Date(current.effect_expires_at).getTime();
+      const rowExpires = new Date(row.effect_expires_at).getTime();
+      grouped.set(key, {
+        ...current,
+        effect_expires_at: rowExpires > currentExpires ? row.effect_expires_at : current.effect_expires_at,
+        stack_count: current.stack_count + 1
+      });
+    }
+
+    setEffects(Array.from(grouped.values()).sort((a, b) =>
+      new Date(a.effect_expires_at).getTime() - new Date(b.effect_expires_at).getTime()
+    ));
   }, [supabase]);
 
   useEffect(() => {
@@ -98,7 +138,7 @@ export default function TimedItemEnhancer() {
           <label>효과 문구
             <input id="timed-effect-text" type="text" maxlength="120" placeholder="예: 야간 외출 허용 / 훈련 보너스 적용" />
           </label>
-          <p>시간제 아이템은 사용한 순간부터 자동으로 시간이 계산되며, 남은 시간이 메인 잔액 카드에 표시됩니다.</p>
+          <p>시간제 아이템은 사용한 순간부터 자동으로 시간이 계산됩니다. 동일 아이템은 시간이 이어서 중첩되며, 활성 시간제 아이템은 최대 3개까지 사용할 수 있습니다.</p>
         `;
 
         const submitButton = form.querySelector<HTMLButtonElement>("button[type='submit'], button.button.primary.wide");
@@ -156,6 +196,19 @@ export default function TimedItemEnhancer() {
         if (effectInput) effectInput.value = "";
       }
 
+      if (url.includes("/rest/v1/rpc/use_inventory_item") && !response.ok) {
+        const cloned = response.clone();
+        window.setTimeout(async () => {
+          try {
+            const payload = await cloned.json();
+            const message = String(payload?.message || "");
+            if (message.includes("건강을 위해 더 이상 시간제 아이템")) setLimitNotice(message);
+          } catch {
+            // 기존 오류 처리는 본 화면의 토스트가 담당합니다.
+          }
+        }, 0);
+      }
+
       if (url.includes("/rest/v1/rpc/use_inventory_item") && response.ok) {
         if (usedInventoryId) {
           window.setTimeout(async () => {
@@ -185,7 +238,7 @@ export default function TimedItemEnhancer() {
     return () => { window.fetch = originalFetch; };
   }, [supabase, loadEffects]);
 
-  const visibleEffects = effects.filter(effect => effect.effect_expires_at && new Date(effect.effect_expires_at).getTime() > now);
+  const visibleEffects = effects.filter(effect => new Date(effect.effect_expires_at).getTime() > now);
 
   if (!mounted) return null;
 
@@ -193,10 +246,10 @@ export default function TimedItemEnhancer() {
     {balancePanel && visibleEffects.length > 0 && createPortal(
       <div className="timed-effects-list" aria-live="polite">
         {visibleEffects.map(effect => {
-          const expires = new Date(effect.effect_expires_at as string).getTime();
-          return <div className="timed-effect-row" key={effect.id}>
+          const expires = new Date(effect.effect_expires_at).getTime();
+          return <div className="timed-effect-row" key={effect.key}>
             <div>
-              <strong>{effect.product_name}</strong>
+              <strong>{effect.product_name}{effect.stack_count > 1 && <em className="timed-effect-stack"> ×{effect.stack_count} 중첩</em>}</strong>
               <span>{effect.effect_text || "아이템 효과 적용 중"}</span>
             </div>
             <b>{formatRemaining(expires - now)}</b>
@@ -214,8 +267,22 @@ export default function TimedItemEnhancer() {
           <h2 id="status-activation-title">상태 이상 발동!!</h2>
           <strong className="status-activation-item">{activationNotice.product_name}</strong>
           <p className="status-activation-effect">{activationNotice.effect_text || "아이템 효과가 적용되었습니다."}</p>
-          <p className="status-activation-duration"><b>{activationNotice.effect_duration_hours}시간</b> 동안 상태이상이 유지됩니다!!</p>
+          <p className="status-activation-duration"><b>{activationNotice.effect_duration_hours}시간</b>의 효과가 기존 효과와 이어서 적용됩니다!!</p>
           <button type="button" className="button primary wide" onClick={() => setActivationNotice(null)}>확인</button>
+        </section>
+      </div>,
+      document.body
+    )}
+
+    {limitNotice && createPortal(
+      <div className="status-activation-backdrop" onMouseDown={() => setLimitNotice(null)}>
+        <section className="status-activation-modal status-limit-modal" role="alertdialog" aria-modal="true" aria-labelledby="status-limit-title" onMouseDown={event => event.stopPropagation()}>
+          <div className="status-activation-symbol">!</div>
+          <div className="status-activation-kicker">HEALTH WARNING</div>
+          <h2 id="status-limit-title">사용 제한!</h2>
+          <p className="status-limit-message">건강을 위해 더 이상 시간제 아이템을 사용할 수 없습니다!</p>
+          <p className="status-activation-duration">시간제 아이템은 <b>최대 3개</b>까지 동시에 사용할 수 있습니다.<br/>현재 효과가 일부 종료된 뒤 다시 사용해주세요.</p>
+          <button type="button" className="button danger wide" onClick={() => setLimitNotice(null)}>확인</button>
         </section>
       </div>,
       document.body
