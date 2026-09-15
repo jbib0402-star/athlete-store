@@ -16,6 +16,8 @@ export default function CategoryEnhancer() {
   const [selectedCategory, setSelectedCategory] = useState("전체");
   const [shopMount, setShopMount] = useState<HTMLElement | null>(null);
   const [adminMount, setAdminMount] = useState<HTMLElement | null>(null);
+  const [productCategoryMount, setProductCategoryMount] = useState<HTMLElement | null>(null);
+  const [productCategory, setProductCategory] = useState("");
   const [newName, setNewName] = useState("");
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -38,6 +40,7 @@ export default function CategoryEnhancer() {
       setCategories(next);
       setDrafts(Object.fromEntries(next.map(category => [category.id, category.name])));
       setSelectedCategory(current => current === "전체" || next.some(category => category.name === current) ? current : "전체");
+      setProductCategory(current => next.some(category => category.name === current) ? current : (next[0]?.name || ""));
     }
   }, [supabase]);
 
@@ -49,34 +52,6 @@ export default function CategoryEnhancer() {
   }, [supabase, loadCategories]);
 
   useEffect(() => {
-    const syncProductSelect = () => {
-      const forms = Array.from(document.querySelectorAll<HTMLFormElement>(".admin-form form"));
-      const form = forms.find(item => item.closest(".admin-form")?.querySelector("h2")?.textContent?.trim() === "상품 등록");
-      if (!form || !categories.length) return;
-      const labels = Array.from(form.querySelectorAll<HTMLLabelElement>("label"));
-      const categoryLabel = labels.find(label => label.textContent?.trim().startsWith("카테고리"));
-      const select = categoryLabel?.querySelector<HTMLSelectElement>("select");
-      if (!select) return;
-
-      const currentOptions = Array.from(select.options).map(option => option.value);
-      const nextOptions = categories.map(category => category.name);
-      const same = currentOptions.length === nextOptions.length && currentOptions.every((value, index) => value === nextOptions[index]);
-      if (!same) {
-        const previous = select.value;
-        select.innerHTML = "";
-        nextOptions.forEach(name => {
-          const option = document.createElement("option");
-          option.value = name;
-          option.textContent = name;
-          select.appendChild(option);
-        });
-        const nextValue = nextOptions.includes(previous) ? previous : nextOptions[0];
-        const setter = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, "value")?.set;
-        setter?.call(select, nextValue);
-        select.dispatchEvent(new Event("change", { bubbles: true }));
-      }
-    };
-
     const scan = () => {
       const originalRow = document.querySelector<HTMLElement>(".content-section .category-row:not(.managed-category-row)");
       if (originalRow) {
@@ -95,28 +70,47 @@ export default function CategoryEnhancer() {
       const activeAdminTab = document.querySelector<HTMLElement>(".admin-tabs button.active")?.textContent || "";
       const adminPage = document.querySelector<HTMLElement>(".admin-page");
       const showManager = Boolean(adminPage && activeAdminTab.includes("상품 관리"));
-      let mount = document.querySelector<HTMLElement>(".category-manager-mount");
+      let managerMount = document.querySelector<HTMLElement>(".category-manager-mount");
 
       if (showManager && adminPage) {
-        if (!mount) {
-          mount = document.createElement("div");
-          mount.className = "category-manager-mount";
-          adminPage.appendChild(mount);
+        if (!managerMount) {
+          managerMount = document.createElement("div");
+          managerMount.className = "category-manager-mount";
+          adminPage.appendChild(managerMount);
         }
-        setAdminMount(previous => previous === mount ? previous : mount);
+        setAdminMount(previous => previous === managerMount ? previous : managerMount);
       } else {
-        if (mount) mount.remove();
+        if (managerMount) managerMount.remove();
         setAdminMount(null);
       }
 
-      syncProductSelect();
+      const forms = Array.from(document.querySelectorAll<HTMLFormElement>(".admin-form form"));
+      const productForm = forms.find(item => item.closest(".admin-form")?.querySelector("h2")?.textContent?.trim() === "상품 등록");
+      if (productForm) {
+        const labels = Array.from(productForm.querySelectorAll<HTMLLabelElement>("label"));
+        const categoryLabel = labels.find(label => label.textContent?.trim().startsWith("카테고리"));
+        const originalSelect = categoryLabel?.querySelector<HTMLSelectElement>("select");
+        if (categoryLabel && originalSelect) {
+          originalSelect.style.display = "none";
+          originalSelect.classList.add("managed-product-category-original");
+          let categoryMount = categoryLabel.querySelector<HTMLElement>(".managed-product-category-mount");
+          if (!categoryMount) {
+            categoryMount = document.createElement("div");
+            categoryMount.className = "managed-product-category-mount";
+            categoryLabel.appendChild(categoryMount);
+          }
+          setProductCategoryMount(previous => previous === categoryMount ? previous : categoryMount);
+        }
+      } else {
+        setProductCategoryMount(null);
+      }
     };
 
     scan();
     const observer = new MutationObserver(scan);
     observer.observe(document.body, { childList: true, subtree: true });
     return () => observer.disconnect();
-  }, [categories]);
+  }, []);
 
   useEffect(() => {
     const applyFilter = () => {
@@ -132,6 +126,34 @@ export default function CategoryEnhancer() {
     observer.observe(main, { childList: true, subtree: true });
     return () => observer.disconnect();
   }, [selectedCategory]);
+
+  useEffect(() => {
+    const originalFetch = window.fetch.bind(window);
+    window.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
+      let nextInit = init;
+      let creatingProduct = false;
+      const url = typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url;
+
+      if (url.includes("/api/admin") && typeof init?.body === "string") {
+        try {
+          const body = JSON.parse(init.body);
+          if (body?.action === "create_product" && body?.payload && productCategory) {
+            creatingProduct = true;
+            body.payload.category = productCategory;
+            nextInit = { ...init, body: JSON.stringify(body) };
+          }
+        } catch {
+          // 기존 요청을 그대로 보냅니다.
+        }
+      }
+
+      const response = await originalFetch(input, nextInit);
+      if (creatingProduct && response.ok && categories[0]?.name) setProductCategory(categories[0].name);
+      return response;
+    };
+
+    return () => { window.fetch = originalFetch; };
+  }, [productCategory, categories]);
 
   async function categoryAction(action: string, payload: Record<string, unknown>, busyKey: string) {
     if (!supabase) return false;
@@ -180,6 +202,13 @@ export default function CategoryEnhancer() {
     shopMount
   ) : null;
 
+  const productCategoryUi = productCategoryMount ? createPortal(
+    <select value={productCategory} onChange={event => setProductCategory(event.target.value)}>
+      {categories.map(category => <option key={category.id} value={category.name}>{category.name}</option>)}
+    </select>,
+    productCategoryMount
+  ) : null;
+
   const adminUi = adminMount ? createPortal(
     <section className="panel category-manager-panel">
       <div className="panel-heading">
@@ -207,5 +236,5 @@ export default function CategoryEnhancer() {
     adminMount
   ) : null;
 
-  return <>{shopUi}{adminUi}</>;
+  return <>{shopUi}{productCategoryUi}{adminUi}</>;
 }
