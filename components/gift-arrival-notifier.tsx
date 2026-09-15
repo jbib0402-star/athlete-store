@@ -18,7 +18,7 @@ export default function GiftArrivalNotifier() {
   const [closing, setClosing] = useState(false);
 
   const loadUnseen = useCallback(async () => {
-    if (!supabase || document.visibilityState !== "visible") return;
+    if (!supabase) return;
     const { data: sessionData } = await supabase.auth.getSession();
     const userId = sessionData.session?.user.id;
     if (!userId) {
@@ -59,9 +59,49 @@ export default function GiftArrivalNotifier() {
 
   useEffect(() => {
     if (!supabase) return;
-    void loadUnseen();
 
-    const interval = window.setInterval(() => void loadUnseen(), 30000);
+    let realtimeChannel: ReturnType<typeof supabase.channel> | null = null;
+    let disposed = false;
+
+    const connectRealtime = async () => {
+      if (realtimeChannel) {
+        await supabase.removeChannel(realtimeChannel);
+        realtimeChannel = null;
+      }
+
+      const { data: sessionData } = await supabase.auth.getSession();
+      const userId = sessionData.session?.user.id;
+      if (!userId || disposed) {
+        setQueue([]);
+        return;
+      }
+
+      await loadUnseen();
+      if (disposed) return;
+
+      realtimeChannel = supabase
+        .channel(`gift-arrivals:${userId}`)
+        .on(
+          "postgres_changes",
+          {
+            event: "INSERT",
+            schema: "public",
+            table: "inventory",
+            filter: `user_id=eq.${userId}`
+          },
+          () => {
+            void loadUnseen();
+          }
+        )
+        .subscribe(status => {
+          if (status === "SUBSCRIBED") void loadUnseen();
+        });
+    };
+
+    void connectRealtime();
+
+    // Realtime가 잠시 끊겨도 선물을 놓치지 않도록 짧은 폴링을 안전망으로 유지합니다.
+    const interval = window.setInterval(() => void loadUnseen(), 10000);
     const onFocus = () => void loadUnseen();
     const onVisibility = () => {
       if (document.visibilityState === "visible") void loadUnseen();
@@ -69,13 +109,18 @@ export default function GiftArrivalNotifier() {
 
     window.addEventListener("focus", onFocus);
     document.addEventListener("visibilitychange", onVisibility);
-    const { data } = supabase.auth.onAuthStateChange(() => void loadUnseen());
+    const { data } = supabase.auth.onAuthStateChange(() => {
+      setQueue([]);
+      void connectRealtime();
+    });
 
     return () => {
+      disposed = true;
       window.clearInterval(interval);
       window.removeEventListener("focus", onFocus);
       document.removeEventListener("visibilitychange", onVisibility);
       data.subscription.unsubscribe();
+      if (realtimeChannel) void supabase.removeChannel(realtimeChannel);
     };
   }, [supabase, loadUnseen]);
 
