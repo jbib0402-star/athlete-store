@@ -85,11 +85,14 @@ export default function AdminEffectManager() {
   useEffect(() => {
     const scan = () => {
       const page = document.querySelector<HTMLElement>(".admin-page");
-      setAdminPage(previous => previous === page ? previous : page);
+      const activeTab = page?.querySelector<HTMLButtonElement>(".admin-tabs button.active");
+      const isMemberPointsTab = Boolean(activeTab?.textContent?.includes("회원") && activeTab?.textContent?.includes("포인트"));
+      const target = isMemberPointsTab ? page || null : null;
+      setAdminPage(previous => previous === target ? previous : target);
     };
     scan();
     const observer = new MutationObserver(scan);
-    observer.observe(document.body, { childList: true, subtree: true });
+    observer.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ["class"] });
     return () => observer.disconnect();
   }, []);
 
