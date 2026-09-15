@@ -128,7 +128,7 @@ function ShopView({ products, profile, settings, onAdd }: { products: Product[];
   </>;
 }
 
-function LockerView({ cart, inventory, profile, settings, onQuantity, onCheckout, onUse }: { cart: CartItem[]; inventory: InventoryItem[]; profile: Profile; settings: AppSettings; onQuantity: (id: string, qty: number) => void; onCheckout: () => void; onUse: (item: InventoryItem) => void }) {
+function LockerView({ cart, inventory, products, profile, settings, onQuantity, onCheckout, onUse }: { cart: CartItem[]; inventory: InventoryItem[]; products: Product[]; profile: Profile; settings: AppSettings; onQuantity: (id: string, qty: number) => void; onCheckout: () => void; onUse: (item: InventoryItem) => void }) {
   const total = cart.reduce((sum, item) => sum + item.product.price * item.quantity, 0);
   const activeInventory = inventory.filter(i => !i.used_at);
   return <div className="two-column-page">
@@ -137,7 +137,7 @@ function LockerView({ cart, inventory, profile, settings, onQuantity, onCheckout
         <div className="checkout-box"><div><span>보유 포인트</span><b>{formatPoints(profile.points)} {settings.currency_name}</b></div><div><span>결제 금액</span><b>- {formatPoints(total)} {settings.currency_name}</b></div><div className="after"><span>결제 후 잔액</span><strong>{formatPoints(profile.points - total)} {settings.currency_name}</strong></div><button className="button primary wide" disabled={profile.points < total} onClick={onCheckout}>전부 구매하기 <ShoppingCart size={18}/></button>{profile.points < total && <p className="form-error center">포인트가 부족합니다.</p>}</div></> : <div className="empty-state compact"><ShoppingCart size={32}/><h3>장바구니가 비어 있습니다.</h3><p>매점에서 필요한 상품을 담아보세요.</p></div>}
     </section>
     <section className="panel"><div className="panel-heading"><div><div className="eyebrow">LOCKER</div><h2>내 보관함</h2></div><span className="count-pill">{activeInventory.length} / {profile.locker_limit || settings.locker_limit}</span></div>
-      {activeInventory.length ? <div className="inventory-grid">{activeInventory.map(item => <article className="inventory-card" key={item.id}><div className="inventory-art">{item.product_image_url ? <img src={item.product_image_url} alt=""/> : <PackageCheck size={36}/>}</div><strong>{item.product_name}</strong><span>{formatDate(item.purchased_at)} 구매</span><button className="button outline small" onClick={() => onUse(item)}>사용하기</button></article>)}</div> : <div className="empty-state compact"><PackageCheck size={32}/><h3>보관 중인 아이템이 없습니다.</h3><p>구매한 상품은 이곳에 들어옵니다.</p></div>}
+      {activeInventory.length ? <div className="inventory-grid">{activeInventory.map(item => { const isLottery = products.some(product => product.id === item.product_id && product.special_type === "lottery"); return <article className="inventory-card" key={item.id}><div className="inventory-art">{item.product_image_url ? <img src={item.product_image_url} alt=""/> : <PackageCheck size={36}/>}</div><strong>{item.product_name}</strong><span>{formatDate(item.purchased_at)} 구매</span><button className="button outline small" onClick={() => onUse(item)}>{isLottery ? "복권 긁기" : "사용하기"}</button></article>; })}</div> : <div className="empty-state compact"><PackageCheck size={32}/><h3>보관 중인 아이템이 없습니다.</h3><p>구매한 상품은 이곳에 들어옵니다.</p></div>}
     </section>
   </div>;
 }
@@ -281,6 +281,18 @@ export default function AthleteStore() {
   }
 
   function requestUse(item: InventoryItem) {
+    const product = products.find(candidate => candidate.id === item.product_id);
+    if (product?.special_type === "lottery") {
+      setConfirm({ title: `${item.product_name}을(를) 긁을까요?`, detail: "복권 한 장을 사용하며 설정된 확률에 따라 결과와 포인트가 즉시 결정됩니다.", label: "복권 긁기", action: async () => {
+        setConfirm(null);
+        if (demo || !supabase) return toast("복권은 실제 로그인 상태에서 이용할 수 있습니다.", "error");
+        const { data, error } = await supabase.rpc("play_lottery", { inventory_item_id: item.id });
+        if (error) return toast(error.message, "error");
+        window.dispatchEvent(new CustomEvent("athlete-lottery-result", { detail: data }));
+        loadAll();
+      }});
+      return;
+    }
     setConfirm({ title: `${item.product_name}을(를) 사용할까요?`, detail: "사용 후에는 보관함에서 사라지지만 사용 기록은 남습니다.", label: "사용", danger: true, action: async () => {
       setConfirm(null);
       if (demo || !supabase) { setInventory(v => v.map(i => i.id === item.id ? { ...i, used_at: new Date().toISOString() } : i)); toast("아이템을 사용했습니다."); return; }
@@ -342,7 +354,16 @@ export default function AthleteStore() {
     <main className="main-content">
       {demo && <div className="demo-banner">데모 화면입니다. 실제 배포에서는 모든 기록이 안전하게 저장됩니다.</div>}
       {view === "shop" && <ShopView products={products} profile={profile} settings={settings} onAdd={addToCart}/>} 
-      {view === "locker" && <LockerView cart={cart} inventory={inventory} profile={profile} settings={settings} onQuantity={changeQuantity} onCheckout={requestCheckout} onUse={requestUse}/>} 
+      {view === "locker" && <LockerView
+        cart={cart}
+        inventory={inventory}
+        products={products}
+        profile={profile}
+        settings={settings}
+        onQuantity={changeQuantity}
+        onCheckout={requestCheckout}
+        onUse={requestUse}
+      />}
       {view === "activity" && <ActivityView attendanceDone={attendanceDone} trainingCount={trainingCount} settings={settings} onAttend={attend} onTrain={train}/>} 
       {view === "transfer" && <TransferView profile={profile} members={members} settings={settings} onTransfer={requestTransfer}/>} 
       {view === "profile" && <ProfileView profile={profile} logs={logs} inventory={inventory} attendanceDone={attendanceDone} trainingCount={trainingCount} settings={settings}/>} 
