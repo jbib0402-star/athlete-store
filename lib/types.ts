@@ -23,6 +23,7 @@ export interface Product {
   purchase_limit: number | null;
   is_active: boolean;
   is_consumable: boolean;
+  special_type?: "standard" | "lottery";
   created_at: string;
 }
 
