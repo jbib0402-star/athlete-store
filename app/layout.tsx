@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import StoreActionEnhancer from "@/components/store-action-enhancer";
 import AuthEntryEnhancer from "@/components/auth-entry-enhancer";
 import TimedItemEnhancer from "@/components/timed-item-enhancer";
+import TimedRuleCorrectionEnhancer from "@/components/timed-rule-correction-enhancer";
 import CategoryEnhancer from "@/components/category-enhancer";
 import TransferRecipientEnhancer from "@/components/transfer-recipient-enhancer";
 import AdminMaintenanceEnhancer from "@/components/admin-maintenance-enhancer";
@@ -23,7 +24,7 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="ko">
-      <body>{children}<StoreActionEnhancer/><AuthEntryEnhancer/><TimedItemEnhancer/><CategoryEnhancer/><TransferRecipientEnhancer/><AdminMaintenanceEnhancer/><ProfileHistoryEnhancer/></body>
+      <body>{children}<StoreActionEnhancer/><AuthEntryEnhancer/><TimedItemEnhancer/><TimedRuleCorrectionEnhancer/><CategoryEnhancer/><TransferRecipientEnhancer/><AdminMaintenanceEnhancer/><ProfileHistoryEnhancer/></body>
     </html>
   );
 }
