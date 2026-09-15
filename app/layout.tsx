@@ -8,6 +8,7 @@ import TransferRecipientEnhancer from "@/components/transfer-recipient-enhancer"
 import AdminMaintenanceEnhancer from "@/components/admin-maintenance-enhancer";
 import AdminEffectManager from "@/components/admin-effect-manager";
 import ProfileHistoryEnhancer from "@/components/profile-history-enhancer";
+import LotteryEnhancer from "@/components/lottery-enhancer";
 import "./globals.css";
 import "./store-actions.css";
 import "./auth-entry.css";
@@ -16,6 +17,7 @@ import "./catalog-tools.css";
 import "./admin-maintenance.css";
 import "./admin-effects.css";
 import "./profile-history.css";
+import "./lottery.css";
 
 export const metadata: Metadata = {
   title: "선수촌 매점",
@@ -26,7 +28,7 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="ko">
-      <body>{children}<StoreActionEnhancer/><AuthEntryEnhancer/><TimedItemEnhancer/><TimedRuleCorrectionEnhancer/><CategoryEnhancer/><TransferRecipientEnhancer/><AdminMaintenanceEnhancer/><AdminEffectManager/><ProfileHistoryEnhancer/></body>
+      <body>{children}<StoreActionEnhancer/><AuthEntryEnhancer/><TimedItemEnhancer/><TimedRuleCorrectionEnhancer/><CategoryEnhancer/><TransferRecipientEnhancer/><AdminMaintenanceEnhancer/><AdminEffectManager/><ProfileHistoryEnhancer/><LotteryEnhancer/></body>
     </html>
   );
 }
