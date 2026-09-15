@@ -129,11 +129,13 @@ export default function LotteryEnhancer() {
   const [usageLoading, setUsageLoading] = useState(false);
   const [adminNotice, setAdminNotice] = useState(null);
   const editingProductIdRef = useRef(null);
+  const repairingLegacyLotteryRef = useRef(false);
 
   const loadProducts = useCallback(async () => {
-    if (!supabase) return;
+    if (!supabase) return [];
     const { data } = await supabase.from("products").select("id,name,special_type,lottery_prizes,lottery_daily_limit,effect_duration_hours").order("created_at", { ascending: false });
     if (data) setProducts(data);
+    return data || [];
   }, [supabase]);
 
   const authHeaders = useCallback(async () => {
@@ -141,6 +143,32 @@ export default function LotteryEnhancer() {
     const { data } = await supabase.auth.getSession();
     return { Authorization: `Bearer ${data.session?.access_token || ""}` };
   }, [supabase]);
+
+  const repairExistingDailyLottery = useCallback(async productRows => {
+    if (repairingLegacyLotteryRef.current) return false;
+    const lottery = productRows.find(product => String(product.name || "").replace(/\s+/g, "") === "일일복권" && product.special_type !== "lottery");
+    if (!lottery) return false;
+
+    repairingLegacyLotteryRef.current = true;
+    try {
+      const prizes = Array.isArray(lottery.lottery_prizes) && lottery.lottery_prizes.length ? lottery.lottery_prizes : DEFAULT_PRIZES;
+      const response = await fetch("/api/admin/lottery", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...(await authHeaders()) },
+        body: JSON.stringify({ action: "set_config", payload: { product_id: lottery.id, special_type: "lottery", prizes } })
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(result.error || "기존 일일복권 설정을 복구하지 못했습니다.");
+      setAdminNotice("기존 일일복권 설정을 복구했습니다. 화면을 새로고침합니다.");
+      window.setTimeout(() => window.location.reload(), 350);
+      return true;
+    } catch (error) {
+      setAdminNotice(error instanceof Error ? error.message : "기존 일일복권 설정을 복구하지 못했습니다.");
+      return false;
+    } finally {
+      repairingLegacyLotteryRef.current = false;
+    }
+  }, [authHeaders]);
 
   const loadUsage = useCallback(async () => {
     if (!isAdmin) return;
@@ -169,13 +197,15 @@ export default function LotteryEnhancer() {
       const userId = sessionData.session?.user.id;
       if (!userId) { setIsAdmin(false); return; }
       const { data } = await supabase.from("profiles").select("role").eq("id", userId).maybeSingle();
-      setIsAdmin(data?.role === "admin");
-      loadProducts();
+      const admin = data?.role === "admin";
+      setIsAdmin(admin);
+      const productRows = await loadProducts();
+      if (admin) await repairExistingDailyLottery(productRows);
     };
     check();
     const { data } = supabase.auth.onAuthStateChange(() => check());
     return () => data.subscription.unsubscribe();
-  }, [supabase, loadProducts]);
+  }, [supabase, loadProducts, repairExistingDailyLottery]);
 
   useEffect(() => {
     const rememberEdit = event => {
