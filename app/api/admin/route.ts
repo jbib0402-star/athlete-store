@@ -46,7 +46,24 @@ export async function POST(request: Request) {
     }
 
     if (action === "create_product") {
-      const record = { name: String(payload.name || "").trim(), description: String(payload.description || "").trim(), price: Math.max(0, Number(payload.price) || 0), image_url: payload.image_url ? String(payload.image_url) : null, category: String(payload.category || "기타"), stock: payload.stock == null ? null : Math.max(0, Number(payload.stock)), purchase_limit: payload.purchase_limit == null ? null : Math.max(1, Number(payload.purchase_limit)), is_consumable: payload.is_consumable !== false, is_active: true };
+      const effectText = String(payload.effect_text || "").trim();
+      const rawDuration = payload.effect_duration_hours;
+      const effectDuration = rawDuration == null || rawDuration === "" ? null : Number(rawDuration);
+      if (effectDuration !== null && ![6, 12, 24].includes(effectDuration)) return NextResponse.json({ error: "아이템 효과 시간은 6시간, 12시간, 24시간 중에서 선택해주세요." }, { status: 400 });
+      if (effectDuration !== null && !effectText) return NextResponse.json({ error: "시간제 아이템은 효과 문구를 입력해주세요." }, { status: 400 });
+      const record = {
+        name: String(payload.name || "").trim(),
+        description: String(payload.description || "").trim(),
+        price: Math.max(0, Number(payload.price) || 0),
+        image_url: payload.image_url ? String(payload.image_url) : null,
+        category: String(payload.category || "기타"),
+        stock: payload.stock == null ? null : Math.max(0, Number(payload.stock)),
+        purchase_limit: payload.purchase_limit == null ? null : Math.max(1, Number(payload.purchase_limit)),
+        is_consumable: payload.is_consumable !== false,
+        is_active: true,
+        effect_text: effectDuration === null ? "" : effectText,
+        effect_duration_hours: effectDuration
+      };
       if (!record.name || !record.description) return NextResponse.json({ error: "상품명과 설명을 입력해주세요." }, { status: 400 });
       const { error } = await admin.from("products").insert(record);
       if (error) return NextResponse.json({ error: error.message }, { status: 400 });
