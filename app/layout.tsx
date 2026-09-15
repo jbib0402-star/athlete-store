@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import StoreActionEnhancer from "@/components/store-action-enhancer";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -10,7 +11,7 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="ko">
-      <body>{children}</body>
+      <body>{children}<StoreActionEnhancer/></body>
     </html>
   );
 }
