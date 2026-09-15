@@ -5,12 +5,14 @@ import TimedItemEnhancer from "@/components/timed-item-enhancer";
 import CategoryEnhancer from "@/components/category-enhancer";
 import TransferRecipientEnhancer from "@/components/transfer-recipient-enhancer";
 import AdminMaintenanceEnhancer from "@/components/admin-maintenance-enhancer";
+import ProfileHistoryEnhancer from "@/components/profile-history-enhancer";
 import "./globals.css";
 import "./store-actions.css";
 import "./auth-entry.css";
 import "./timed-effects.css";
 import "./catalog-tools.css";
 import "./admin-maintenance.css";
+import "./profile-history.css";
 
 export const metadata: Metadata = {
   title: "선수촌 매점",
@@ -21,7 +23,7 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="ko">
-      <body>{children}<StoreActionEnhancer/><AuthEntryEnhancer/><TimedItemEnhancer/><CategoryEnhancer/><TransferRecipientEnhancer/><AdminMaintenanceEnhancer/></body>
+      <body>{children}<StoreActionEnhancer/><AuthEntryEnhancer/><TimedItemEnhancer/><CategoryEnhancer/><TransferRecipientEnhancer/><AdminMaintenanceEnhancer/><ProfileHistoryEnhancer/></body>
     </html>
   );
 }
