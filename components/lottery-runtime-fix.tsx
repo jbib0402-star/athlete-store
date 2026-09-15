@@ -129,6 +129,15 @@ export default function LotteryRuntimeFix() {
     setScratchQueue(queue => [...queue, result]);
   }, []);
 
+  useEffect(() => {
+    const receiveResult = (event: Event) => {
+      const result = (event as CustomEvent<ScratchResult>).detail;
+      if (result?.product_name && result?.result_label) pushResult(result);
+    };
+    window.addEventListener("athlete-lottery-result", receiveResult);
+    return () => window.removeEventListener("athlete-lottery-result", receiveResult);
+  }, [pushResult]);
+
   const playInventoryLottery = useCallback(async (product: LotteryProduct, inventoryId: string) => {
     if (!supabase || processingRef.current.has(inventoryId)) return;
     processingRef.current.add(inventoryId);
@@ -143,23 +152,6 @@ export default function LotteryRuntimeFix() {
       processingRef.current.delete(inventoryId);
     }
   }, [supabase, pushResult]);
-
-  const findUnusedLotteryInventory = useCallback(async (product: LotteryProduct) => {
-    if (!supabase) return null;
-    const { data: sessionData } = await supabase.auth.getSession();
-    const userId = sessionData.session?.user.id;
-    if (!userId) return null;
-    const { data } = await supabase
-      .from("inventory")
-      .select("id")
-      .eq("user_id", userId)
-      .eq("product_id", product.id)
-      .is("used_at", null)
-      .order("purchased_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
-    return data?.id ? String(data.id) : null;
-  }, [supabase]);
 
   const autoPlayRecentCartLotteries = useCallback(async (startedAt: string) => {
     if (!supabase || !lotteryProducts.length) return;
@@ -227,29 +219,6 @@ export default function LotteryRuntimeFix() {
         return;
       }
 
-      const inventoryButton = target.closest<HTMLButtonElement>(".inventory-card button");
-      if (inventoryButton && inventoryButton.textContent?.includes("사용")) {
-        const card = inventoryButton.closest<HTMLElement>(".inventory-card");
-        const productName = card?.querySelector("strong")?.textContent?.trim() || "";
-        const product = lotteryProducts.find(item => item.name === productName);
-        if (!product) return;
-
-        event.preventDefault();
-        event.stopPropagation();
-        event.stopImmediatePropagation();
-        if (!window.confirm(`${product.name}을(를) 사용하고 복권을 긁을까요?`)) return;
-
-        void (async () => {
-          const inventoryId = await findUnusedLotteryInventory(product);
-          if (!inventoryId) {
-            setLimitNotice("사용할 수 있는 복권을 찾지 못했습니다. 새로고침 후 다시 시도해주세요.");
-            return;
-          }
-          await playInventoryLottery(product, inventoryId);
-        })();
-        return;
-      }
-
       const checkoutButton = target.closest<HTMLButtonElement>(".checkout-box button.button.primary.wide");
       if (checkoutButton && checkoutButton.textContent?.includes("전부 구매")) {
         const startedAt = new Date(Date.now() - 1000).toISOString();
@@ -259,7 +228,7 @@ export default function LotteryRuntimeFix() {
 
     document.addEventListener("click", handleClick, true);
     return () => document.removeEventListener("click", handleClick, true);
-  }, [supabase, lotteryProducts, findUnusedLotteryInventory, playInventoryLottery, pushResult, autoPlayRecentCartLotteries]);
+  }, [supabase, lotteryProducts, pushResult, autoPlayRecentCartLotteries]);
 
   useEffect(() => {
     const syncAdminVisibility = () => {
