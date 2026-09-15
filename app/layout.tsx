@@ -2,10 +2,13 @@ import type { Metadata } from "next";
 import StoreActionEnhancer from "@/components/store-action-enhancer";
 import AuthEntryEnhancer from "@/components/auth-entry-enhancer";
 import TimedItemEnhancer from "@/components/timed-item-enhancer";
+import CategoryEnhancer from "@/components/category-enhancer";
+import TransferRecipientEnhancer from "@/components/transfer-recipient-enhancer";
 import "./globals.css";
 import "./store-actions.css";
 import "./auth-entry.css";
 import "./timed-effects.css";
+import "./catalog-tools.css";
 
 export const metadata: Metadata = {
   title: "선수촌 매점",
@@ -16,7 +19,7 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="ko">
-      <body>{children}<StoreActionEnhancer/><AuthEntryEnhancer/><TimedItemEnhancer/></body>
+      <body>{children}<StoreActionEnhancer/><AuthEntryEnhancer/><TimedItemEnhancer/><CategoryEnhancer/><TransferRecipientEnhancer/></body>
     </html>
   );
 }
