@@ -10,6 +10,7 @@ import AdminEffectManager from "@/components/admin-effect-manager";
 import ProfileHistoryEnhancer from "@/components/profile-history-enhancer";
 import LotteryEnhancer from "@/components/lottery-enhancer";
 import LotteryRuntimeFix from "@/components/lottery-runtime-fix";
+import LotteryConfigBridge from "@/components/lottery-config-bridge";
 import "./globals.css";
 import "./store-actions.css";
 import "./auth-entry.css";
@@ -29,7 +30,7 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="ko">
-      <body>{children}<StoreActionEnhancer/><AuthEntryEnhancer/><TimedItemEnhancer/><TimedRuleCorrectionEnhancer/><CategoryEnhancer/><TransferRecipientEnhancer/><AdminMaintenanceEnhancer/><AdminEffectManager/><ProfileHistoryEnhancer/><LotteryEnhancer/><LotteryRuntimeFix/></body>
+      <body>{children}<StoreActionEnhancer/><AuthEntryEnhancer/><TimedItemEnhancer/><TimedRuleCorrectionEnhancer/><CategoryEnhancer/><TransferRecipientEnhancer/><AdminMaintenanceEnhancer/><AdminEffectManager/><ProfileHistoryEnhancer/><LotteryEnhancer/><LotteryRuntimeFix/><LotteryConfigBridge/></body>
     </html>
   );
 }
