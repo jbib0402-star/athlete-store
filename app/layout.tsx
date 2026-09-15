@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
 import StoreActionEnhancer from "@/components/store-action-enhancer";
+import AuthEntryEnhancer from "@/components/auth-entry-enhancer";
 import "./globals.css";
 import "./store-actions.css";
+import "./auth-entry.css";
 
 export const metadata: Metadata = {
   title: "선수촌 매점",
@@ -12,7 +14,7 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="ko">
-      <body>{children}<StoreActionEnhancer/></body>
+      <body>{children}<StoreActionEnhancer/><AuthEntryEnhancer/></body>
     </html>
   );
 }
