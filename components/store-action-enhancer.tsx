@@ -89,7 +89,7 @@ export default function StoreActionEnhancer() {
     const { error } = await supabase.rpc("purchase_product", { target_product_id: product.id });
     if (error) return showNotice(error.message, true);
     showNotice("바로 구매가 완료되었습니다.");
-    window.setTimeout(() => window.location.reload(), 450);
+    window.dispatchEvent(new CustomEvent("athlete-data-changed"));
   }, [supabase, showNotice]);
 
   const openGift = useCallback((product: ShopProduct) => {
@@ -132,7 +132,7 @@ export default function StoreActionEnhancer() {
     setRecipientId("");
     setRecipientQuery("");
     showNotice(`${recipient.character_name}에게 선물을 보냈습니다.`);
-    window.setTimeout(() => window.location.reload(), 450);
+    window.dispatchEvent(new CustomEvent("athlete-data-changed"));
   }, [supabase, giftProduct, recipientId, recipientQuery, availableMembers, showNotice]);
 
   useEffect(() => {
