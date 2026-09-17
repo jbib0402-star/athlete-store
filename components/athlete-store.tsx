@@ -190,6 +190,13 @@ const navItems: { id: View; label: string; icon: React.ComponentType<{ size?: nu
   { id: "profile", label: "내 정보", icon: UserRound }
 ];
 
+const VIEW_STORAGE_KEY = "athlete-store:current-view";
+const validViews: View[] = ["shop", "locker", "activity", "transfer", "profile", "admin"];
+
+function isView(value: string | null): value is View {
+  return Boolean(value && validViews.includes(value as View));
+}
+
 export default function AthleteStore() {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [view, setView] = useState<View>("shop");
@@ -207,6 +214,11 @@ export default function AthleteStore() {
   const [toasts, setToasts] = useState<Toast[]>([]);
   const [confirm, setConfirm] = useState<null | { title: string; detail: string; label?: string; danger?: boolean; action: () => void }>(null);
   const supabase = useMemo(() => getSupabaseBrowser(), []);
+
+  const changeView = useCallback((nextView: View) => {
+    setView(nextView);
+    window.localStorage.setItem(VIEW_STORAGE_KEY, nextView);
+  }, []);
 
   const toast = useCallback((text: string, tone: Toast["tone"] = "success") => {
     const id = Date.now(); setToasts(v => [...v, { id, text, tone }]);
@@ -240,11 +252,57 @@ export default function AthleteStore() {
   }, [supabase]);
 
   useEffect(() => {
+    const savedView = window.localStorage.getItem(VIEW_STORAGE_KEY);
+    if (isView(savedView)) setView(savedView);
+  }, []);
+
+  useEffect(() => {
     if (!supabase) { setBusy(false); return; }
     supabase.auth.getSession().then(({ data }) => { if (data.session?.user) loadAll(data.session.user.id); else setBusy(false); });
     const { data: auth } = supabase.auth.onAuthStateChange((_event, session) => { if (session?.user) loadAll(session.user.id); else { setProfile(null); setBusy(false); } });
     return () => auth.subscription.unsubscribe();
   }, [supabase, loadAll]);
+
+  useEffect(() => {
+    if (view === "admin" && profile && profile.role !== "admin") changeView("shop");
+  }, [view, profile, changeView]);
+
+  useEffect(() => {
+    if (!supabase || !profile || demo) return;
+
+    let refreshTimer: number | null = null;
+    const refresh = () => {
+      if (refreshTimer) window.clearTimeout(refreshTimer);
+      refreshTimer = window.setTimeout(() => void loadAll(profile.id), 150);
+    };
+    const onVisibilityChange = () => {
+      if (document.visibilityState === "visible") refresh();
+    };
+    const onDataChanged = () => refresh();
+
+    const channel = supabase
+      .channel(`athlete-store-data:${profile.id}`)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "inventory", filter: `user_id=eq.${profile.id}` },
+        refresh
+      )
+      .subscribe();
+
+    const interval = window.setInterval(refresh, 10000);
+    window.addEventListener("focus", refresh);
+    window.addEventListener("athlete-data-changed", onDataChanged);
+    document.addEventListener("visibilitychange", onVisibilityChange);
+
+    return () => {
+      if (refreshTimer) window.clearTimeout(refreshTimer);
+      window.clearInterval(interval);
+      window.removeEventListener("focus", refresh);
+      window.removeEventListener("athlete-data-changed", onDataChanged);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+      void supabase.removeChannel(channel);
+    };
+  }, [supabase, profile?.id, demo, loadAll]);
 
   function enterDemo() {
     setDemo(true); setProfile(demoProfile); setProducts(demoProducts);
@@ -335,7 +393,7 @@ export default function AthleteStore() {
     const data = await response.json(); if (!response.ok) toast(data.error || "요청을 처리하지 못했습니다.", "error"); else { toast(data.message || "저장했습니다."); loadAll(); }
   }
 
-  async function logout() { if (supabase && !demo) await supabase.auth.signOut(); setDemo(false); setProfile(null); setCart([]); setInventory([]); setLogs([]); setView("shop"); }
+  async function logout() { if (supabase && !demo) await supabase.auth.signOut(); setDemo(false); setProfile(null); setCart([]); setInventory([]); setLogs([]); changeView("shop"); }
 
   if (busy) return <div className="loading-screen"><div className="brand-mark"><Dumbbell/></div><p>선수촌 시스템을 불러오는 중…</p></div>;
   if (!profile) return <Login onDemo={enterDemo}/>;
@@ -344,10 +402,10 @@ export default function AthleteStore() {
   return <div className="app-shell">
     <ToastStack items={toasts}/>
     {confirm && <ConfirmDialog title={confirm.title} detail={confirm.detail} confirmLabel={confirm.label} danger={confirm.danger} onCancel={() => setConfirm(null)} onConfirm={confirm.action}/>} 
-    <header className="topbar"><button className="mobile-menu" onClick={() => setMobileNav(true)} aria-label="메뉴 열기"><Menu/></button><div className="mobile-logo"><Dumbbell/><span>{settings.site_name}</span></div><button className="cart-shortcut" onClick={() => setView("locker")}><ShoppingCart/>{cartCount > 0 && <b>{cartCount}</b>}</button></header>
+    <header className="topbar"><button className="mobile-menu" onClick={() => setMobileNav(true)} aria-label="메뉴 열기"><Menu/></button><div className="mobile-logo"><Dumbbell/><span>{settings.site_name}</span></div><button className="cart-shortcut" onClick={() => changeView("locker")}><ShoppingCart/>{cartCount > 0 && <b>{cartCount}</b>}</button></header>
     <aside className={`sidebar ${mobileNav ? "open" : ""}`}>
       <div className="sidebar-head"><div className="brand-mark"><Dumbbell/></div><div><span>NATIONAL</span><strong>ATHLETE STORE</strong></div><button className="close-nav" onClick={() => setMobileNav(false)}><X/></button></div>
-      <nav>{navItems.map(item => { const Icon = item.icon; return <button key={item.id} className={view === item.id ? "active" : ""} onClick={() => { setView(item.id); setMobileNav(false); }}><Icon size={20}/><span>{item.label}</span>{item.id === "locker" && cartCount > 0 && <b>{cartCount}</b>}</button>; })}{profile.role === "admin" && <button className={view === "admin" ? "active" : ""} onClick={() => { setView("admin"); setMobileNav(false); }}><LayoutDashboard size={20}/><span>운영 관리</span></button>}</nav>
+      <nav>{navItems.map(item => { const Icon = item.icon; return <button key={item.id} className={view === item.id ? "active" : ""} onClick={() => { changeView(item.id); setMobileNav(false); }}><Icon size={20}/><span>{item.label}</span>{item.id === "locker" && cartCount > 0 && <b>{cartCount}</b>}</button>; })}{profile.role === "admin" && <button className={view === "admin" ? "active" : ""} onClick={() => { changeView("admin"); setMobileNav(false); }}><LayoutDashboard size={20}/><span>운영 관리</span></button>}</nav>
       <div className="sidebar-profile"><div className="avatar-small">{profile.avatar_url ? <img src={profile.avatar_url} alt=""/> : profile.character_name.slice(0, 1)}</div><div><strong>{profile.character_name}</strong><span>{formatPoints(profile.points)} {settings.currency_name}</span></div><button onClick={logout} aria-label="로그아웃"><LogOut/></button></div>
     </aside>
     {mobileNav && <button className="nav-backdrop" onClick={() => setMobileNav(false)} aria-label="메뉴 닫기"/>}
