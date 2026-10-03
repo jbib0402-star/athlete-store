@@ -59,10 +59,25 @@ export async function POST(request: Request) {
     const { data: authData, error: authError } = await userClient.auth.getUser(token);
     if (authError || !authData.user) return NextResponse.json({ error: "로그인이 만료되었습니다." }, { status: 401 });
     const { data: requester } = await admin.from("profiles").select("role").eq("id", authData.user.id).single();
-    if (requester?.role !== "admin") return NextResponse.json({ error: "운영진 권한이 필요합니다." }, { status: 403 });
+    if (requester?.role !== "admin" && requester?.role !== "staff") return NextResponse.json({ error: "운영진 권한이 필요합니다." }, { status: 403 });
 
     const { action, payload } = await request.json();
     if (!payload || typeof payload !== "object") return NextResponse.json({ error: "잘못된 요청입니다." }, { status: 400 });
+
+    if (action === "set_staff_role") {
+      if (requester.role !== "admin") return NextResponse.json({ error: "스태프 권한은 관리자만 변경할 수 있습니다." }, { status: 403 });
+      const userId = String(payload.user_id || "");
+      const role = payload.role;
+      if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(userId) || (role !== "member" && role !== "staff")) {
+        return NextResponse.json({ error: "회원과 권한을 확인해주세요." }, { status: 400 });
+      }
+      const { data: target, error } = await admin.from("profiles")
+        .update({ role }).eq("id", userId).in("role", ["member", "staff"])
+        .select("character_name,role").maybeSingle();
+      if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+      if (!target) return NextResponse.json({ error: "회원을 찾을 수 없거나 관리자 계정입니다." }, { status: 400 });
+      return NextResponse.json({ message: `${target.character_name} ${role === "staff" ? "스태프 권한을 부여했습니다." : "스태프 권한을 해제했습니다."}` });
+    }
 
     if (action === "create_member") {
       const username = String(payload.username || "").trim().toLowerCase();
@@ -87,6 +102,7 @@ export async function POST(request: Request) {
       const { data: target, error: targetError } = await admin.from("profiles").select("role,character_name").eq("id", userId).maybeSingle();
       if (targetError) return NextResponse.json({ error: targetError.message }, { status: 400 });
       if (!target) return NextResponse.json({ error: "회원을 찾을 수 없습니다." }, { status: 404 });
+      if (target.role === "staff" && requester.role !== "admin") return NextResponse.json({ error: "스태프 계정은 관리자만 탈퇴 처리할 수 있습니다." }, { status: 403 });
       if (target.role === "admin") return NextResponse.json({ error: "운영진 계정은 회원 목록에서 탈퇴 처리할 수 없습니다." }, { status: 400 });
 
       const { error } = await admin.auth.admin.deleteUser(userId);

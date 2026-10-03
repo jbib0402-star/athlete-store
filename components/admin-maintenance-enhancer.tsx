@@ -23,7 +23,7 @@ type AdminMember = {
   id: string;
   username: string;
   character_name: string;
-  role: "member" | "admin";
+  role: "member" | "staff" | "admin";
 };
 
 type MemberInventoryItem = {
@@ -86,7 +86,7 @@ export default function AdminMaintenanceEnhancer() {
     }
 
     const { data: me } = await supabase.from("profiles").select("role").eq("id", userId).maybeSingle();
-    if (me?.role !== "admin") {
+    if (me?.role !== "admin" && me?.role !== "staff") {
       setIsAdmin(false);
       return;
     }

@@ -197,7 +197,7 @@ export default function LotteryEnhancer() {
       const userId = sessionData.session?.user.id;
       if (!userId) { setIsAdmin(false); return; }
       const { data } = await supabase.from("profiles").select("role").eq("id", userId).maybeSingle();
-      const admin = data?.role === "admin";
+      const admin = (data?.role === "admin" || data?.role === "staff");
       setIsAdmin(admin);
       const productRows = await loadProducts();
       if (admin) await repairExistingDailyLottery(productRows);

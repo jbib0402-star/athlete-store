@@ -39,7 +39,7 @@ export async function POST(request: Request) {
       .eq("id", authData.user.id)
       .maybeSingle();
 
-    if (requester?.role !== "admin") {
+    if (requester?.role !== "admin" && requester?.role !== "staff") {
       return NextResponse.json({ error: "운영진 권한이 필요합니다." }, { status: 403 });
     }
 

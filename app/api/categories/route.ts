@@ -30,7 +30,7 @@ export async function POST(request: Request) {
     if (authError || !authData.user) return NextResponse.json({ error: "로그인이 만료되었습니다." }, { status: 401 });
 
     const { data: requester } = await admin.from("profiles").select("role").eq("id", authData.user.id).single();
-    if (requester?.role !== "admin") return NextResponse.json({ error: "운영진 권한이 필요합니다." }, { status: 403 });
+    if (requester?.role !== "admin" && requester?.role !== "staff") return NextResponse.json({ error: "운영진 권한이 필요합니다." }, { status: 403 });
 
     const body = await request.json();
     const action = String(body?.action || "");
