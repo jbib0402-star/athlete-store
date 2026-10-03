@@ -309,3 +309,12 @@ textarea { resize:vertical; }
   .toast { min-width:0; }
 }
 @media (min-width:801px) { .close-nav { display:none; } }
+
+
+.staff-permissions { padding:24px; }
+.staff-permissions>label { display:grid; gap:8px; margin:20px 0; font-size:14px; }
+.staff-member-row { display:flex; align-items:center; gap:16px; padding:16px 0; border-top:1px solid var(--line); font-size:14px; flex-wrap:wrap; }
+.staff-member-row>div { flex:1; min-width:140px; display:grid; gap:4px; }
+.staff-member-row strong { font-size:16px; }
+.staff-member-row span { color:var(--muted); }
+.staff-role-label { min-width:68px; font-weight:700; }

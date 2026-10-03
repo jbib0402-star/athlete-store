@@ -75,7 +75,7 @@ export default function AdminEffectManager() {
       const userId = sessionData.session?.user.id;
       if (!userId) return setIsAdmin(false);
       const { data } = await supabase.from("profiles").select("role").eq("id", userId).maybeSingle();
-      setIsAdmin(data?.role === "admin");
+      setIsAdmin((data?.role === "admin" || data?.role === "staff"));
     };
     checkAdmin();
     const { data } = supabase.auth.onAuthStateChange(() => checkAdmin());

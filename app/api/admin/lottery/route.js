@@ -25,7 +25,7 @@ async function requireAdmin(request) {
   const { data: authData, error: authError } = await userClient.auth.getUser(token);
   if (authError || !authData.user) return { error: NextResponse.json({ error: "로그인이 만료되었습니다." }, { status: 401 }) };
   const { data: requester } = await admin.from("profiles").select("role").eq("id", authData.user.id).maybeSingle();
-  if (requester?.role !== "admin") return { error: NextResponse.json({ error: "운영진 권한이 필요합니다." }, { status: 403 }) };
+  if (requester?.role !== "admin" && requester?.role !== "staff") return { error: NextResponse.json({ error: "운영진 권한이 필요합니다." }, { status: 403 }) };
   return { admin };
 }
 
