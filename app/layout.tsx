@@ -17,6 +17,7 @@ import AgilityTrainingGame from "@/components/agility-training-game";
 import LockerRefreshEnhancer from "@/components/locker-refresh-enhancer";
 import ProfileNicknameEditor from "@/components/profile-nickname-editor";
 import "./globals.css";
+import "./costume-gifts.css";
 import "./store-actions.css";
 import "./auth-entry.css";
 import "./timed-effects.css";

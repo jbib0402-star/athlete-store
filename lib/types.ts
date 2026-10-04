@@ -23,6 +23,7 @@ export interface Product {
   purchase_limit: number | null;
   is_active: boolean;
   is_consumable: boolean;
+  is_gift_box?: boolean;
   special_type?: "standard" | "lottery";
   created_at: string;
 }
@@ -34,6 +35,8 @@ export interface CartItem {
 }
 
 export interface InventoryItem {
+  gift_image_path?: string | null;
+  gift_from_name?: string | null;
   id: string;
   product_id: string | null;
   product_name: string;
