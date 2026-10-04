@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { History, Minus, PackageCheck, Plus, RotateCcw } from "lucide-react";
+import CostumeGiftReveal from "@/components/costume-gift-reveal";
 import { getSupabaseBrowser } from "@/lib/supabase";
 
 type PointHistoryRow = {
@@ -13,6 +14,7 @@ type PointHistoryRow = {
 };
 
 type UsedItemRow = {
+  gift_image_path?: string | null;
   id: string;
   product_name: string;
   used_at: string;
@@ -35,6 +37,7 @@ function formatPoints(value: number) {
 
 export default function ProfileHistoryEnhancer() {
   const supabase = useMemo(() => getSupabaseBrowser(), []);
+  const [giftHistoryItem, setGiftHistoryItem] = useState<UsedItemRow | null>(null);
   const [mount, setMount] = useState<HTMLElement | null>(null);
   const [pointLogs, setPointLogs] = useState<PointHistoryRow[]>([]);
   const [usedItems, setUsedItems] = useState<UsedItemRow[]>([]);
@@ -63,7 +66,7 @@ export default function ProfileHistoryEnhancer() {
         .limit(100),
       supabase
         .from("inventory")
-        .select("id,product_name,used_at,effect_text,effect_duration_hours")
+        .select("id,product_name,used_at,effect_text,effect_duration_hours,gift_image_path")
         .eq("user_id", userId)
         .not("used_at", "is", null)
         .order("used_at", { ascending: false })
@@ -128,6 +131,7 @@ export default function ProfileHistoryEnhancer() {
 
   return createPortal(
     <div className="profile-history-grid">
+      {giftHistoryItem && <CostumeGiftReveal itemId={giftHistoryItem.id} name={giftHistoryItem.product_name} onClose={() => setGiftHistoryItem(null)}/>}
       <section className="panel profile-history-panel">
         <div className="panel-heading profile-history-heading">
           <div>
@@ -165,6 +169,7 @@ export default function ProfileHistoryEnhancer() {
               <div className="item-use-history-icon"><PackageCheck size={18}/></div>
               <div>
                 <strong>{item.product_name}</strong>
+                {item.gift_image_path && <button type="button" className="button outline small" onClick={() => setGiftHistoryItem(item)}>선물 이미지 다시 보기</button>}
                 {item.effect_text && <p>{item.effect_text}{item.effect_duration_hours ? ` · ${item.effect_duration_hours}시간 지속` : ""}</p>}
                 <span>{formatDateTime(item.used_at)} 사용</span>
               </div>

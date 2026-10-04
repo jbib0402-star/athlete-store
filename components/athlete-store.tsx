@@ -7,6 +7,7 @@ import {
   Plus, Search, Settings, ShieldCheck, ShoppingBag, ShoppingCart, Store, Trash2,
   UserRound, UsersRound, WalletCards, X
 } from "lucide-react";
+import CostumeGiftReveal from "@/components/costume-gift-reveal";
 import { getSupabaseBrowser, hasSupabaseConfig, usernameToEmail } from "@/lib/supabase";
 import {
   AppSettings, CartItem, CATEGORIES, DEFAULT_SETTINGS, InventoryItem, PointLog, Product, Profile
@@ -102,11 +103,11 @@ function ProductCard({ product, currency, onAdd }: { product: Product; currency:
   return <article className={`product-card ${soldOut ? "sold-out" : ""}`}>
     <div className="product-visual">
       {product.image_url ? <img src={product.image_url} alt=""/> : <div className="product-placeholder"><span>{productGlyph(product.category)}</span><ShoppingBag size={42}/></div>}
-      <div className="category-chip">{product.category}</div>{soldOut && <div className="soldout-label">SOLD OUT</div>}
+      <div className="category-chip">{product.is_gift_box ? "선물 전용" : product.category}</div>{soldOut && <div className="soldout-label">SOLD OUT</div>}
     </div>
     <div className="product-body"><div><h3>{product.name}</h3><p>{product.description}</p></div>
       <div className="product-meta"><div><strong>{formatPoints(product.price)} {currency}</strong><small>{product.stock == null ? "상시 판매" : `남은 수량 ${product.stock}`}{product.purchase_limit ? ` · 1인 ${product.purchase_limit}개` : ""}</small></div>
-        <button className="icon-button dark" onClick={() => onAdd(product)} disabled={soldOut} aria-label={`${product.name} 장바구니 담기`}><Plus size={21}/></button>
+        <button className="icon-button dark" onClick={() => onAdd(product)} disabled={soldOut} hidden={product.is_gift_box} aria-label={`${product.name} 장바구니 담기`}><Plus size={21}/></button>
       </div>
     </div>
   </article>;
@@ -137,7 +138,7 @@ function LockerView({ cart, inventory, products, profile, settings, onQuantity, 
         <div className="checkout-box"><div><span>보유 포인트</span><b>{formatPoints(profile.points)} {settings.currency_name}</b></div><div><span>결제 금액</span><b>- {formatPoints(total)} {settings.currency_name}</b></div><div className="after"><span>결제 후 잔액</span><strong>{formatPoints(profile.points - total)} {settings.currency_name}</strong></div><button className="button primary wide" disabled={profile.points < total} onClick={onCheckout}>전부 구매하기 <ShoppingCart size={18}/></button>{profile.points < total && <p className="form-error center">포인트가 부족합니다.</p>}</div></> : <div className="empty-state compact"><ShoppingCart size={32}/><h3>장바구니가 비어 있습니다.</h3><p>매점에서 필요한 상품을 담아보세요.</p></div>}
     </section>
     <section className="panel"><div className="panel-heading"><div><div className="eyebrow">LOCKER</div><h2>내 보관함</h2></div><span className="count-pill">{activeInventory.length} / {profile.locker_limit || settings.locker_limit}</span></div>
-      {activeInventory.length ? <div className="inventory-grid">{activeInventory.map(item => { const isLottery = products.some(product => product.id === item.product_id && product.special_type === "lottery"); return <article className="inventory-card" key={item.id}><div className="inventory-art">{item.product_image_url ? <img src={item.product_image_url} alt=""/> : <PackageCheck size={36}/>}</div><strong>{item.product_name}</strong><span>{formatDate(item.purchased_at)} 구매</span><button className="button outline small" onClick={() => onUse(item)}>{isLottery ? "복권 긁기" : "사용하기"}</button></article>; })}</div> : <div className="empty-state compact"><PackageCheck size={32}/><h3>보관 중인 아이템이 없습니다.</h3><p>구매한 상품은 이곳에 들어옵니다.</p></div>}
+      {activeInventory.length ? <div className="inventory-grid">{activeInventory.map(item => { const isLottery = products.some(product => product.id === item.product_id && product.special_type === "lottery"); return <article className="inventory-card" key={item.id}><div className="inventory-art">{item.product_image_url ? <img src={item.product_image_url} alt=""/> : <PackageCheck size={36}/>}</div><strong>{item.product_name}</strong><span>{formatDate(item.purchased_at)} 구매</span><button className="button outline small" onClick={() => onUse(item)}>{item.gift_image_path ? "선물상자 열기" : isLottery ? "복권 긁기" : "사용하기"}</button></article>; })}</div> : <div className="empty-state compact"><PackageCheck size={32}/><h3>보관 중인 아이템이 없습니다.</h3><p>구매한 상품은 이곳에 들어옵니다.</p></div>}
     </section>
   </div>;
 }
@@ -230,6 +231,7 @@ export default function AthleteStore() {
   const [busy, setBusy] = useState(true);
   const [demo, setDemo] = useState(false);
   const [toasts, setToasts] = useState<Toast[]>([]);
+  const [costumeGift, setCostumeGift] = useState<InventoryItem | null>(null);
   const [confirm, setConfirm] = useState<null | { title: string; detail: string; label?: string; danger?: boolean; action: () => void }>(null);
   const supabase = useMemo(() => getSupabaseBrowser(), []);
 
@@ -357,6 +359,7 @@ export default function AthleteStore() {
   }
 
   function requestUse(item: InventoryItem) {
+    if (item.gift_image_path) { setCostumeGift(item); return; }
     const product = products.find(candidate => candidate.id === item.product_id);
     if (product?.special_type === "lottery") {
       setConfirm({ title: `${item.product_name}을(를) 긁을까요?`, detail: "복권 한 장을 사용하며 설정된 확률에 따라 결과와 포인트가 즉시 결정됩니다.", label: "복권 긁기", action: async () => {
@@ -420,7 +423,8 @@ export default function AthleteStore() {
 
   return <div className="app-shell">
     <ToastStack items={toasts}/>
-    {confirm && <ConfirmDialog title={confirm.title} detail={confirm.detail} confirmLabel={confirm.label} danger={confirm.danger} onCancel={() => setConfirm(null)} onConfirm={confirm.action}/>} 
+    {costumeGift && <CostumeGiftReveal itemId={costumeGift.id} name={costumeGift.product_name} onClose={() => setCostumeGift(null)} onOpened={() => { void loadAll(); window.dispatchEvent(new CustomEvent("athlete-data-changed")); }}/>}
+      {confirm && <ConfirmDialog title={confirm.title} detail={confirm.detail} confirmLabel={confirm.label} danger={confirm.danger} onCancel={() => setConfirm(null)} onConfirm={confirm.action}/>}
     <header className="topbar"><button className="mobile-menu" onClick={() => setMobileNav(true)} aria-label="메뉴 열기"><Menu/></button><div className="mobile-logo"><Dumbbell/><span>{settings.site_name}</span></div><button className="cart-shortcut" onClick={() => changeView("locker")}><ShoppingCart/>{cartCount > 0 && <b>{cartCount}</b>}</button></header>
     <aside className={`sidebar ${mobileNav ? "open" : ""}`}>
       <div className="sidebar-head"><div className="brand-mark"><Dumbbell/></div><div><span>NATIONAL</span><strong>ATHLETE STORE</strong></div><button className="close-nav" onClick={() => setMobileNav(false)}><X/></button></div>

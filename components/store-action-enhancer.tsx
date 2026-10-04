@@ -7,6 +7,7 @@ type ShopProduct = {
   id: string;
   name: string;
   price: number;
+  is_gift_box?: boolean;
 };
 
 type GiftMember = {
@@ -33,6 +34,13 @@ export default function StoreActionEnhancer() {
   const [giftProduct, setGiftProduct] = useState<ShopProduct | null>(null);
   const [recipientId, setRecipientId] = useState("");
   const [recipientQuery, setRecipientQuery] = useState("");
+  const [giftFile, setGiftFile] = useState<File | null>(null);
+  const [giftPreview, setGiftPreview] = useState("");
+  useEffect(() => {
+    if (!giftFile) { setGiftPreview(""); return; }
+    const url = URL.createObjectURL(giftFile); setGiftPreview(url);
+    return () => URL.revokeObjectURL(url);
+  }, [giftFile]);
   const [sending, setSending] = useState(false);
   const [notice, setNotice] = useState<{ text: string; error?: boolean } | null>(null);
 
@@ -49,7 +57,7 @@ export default function StoreActionEnhancer() {
     if (!userId) return;
 
     const [productsRes, membersRes, inventoryRes] = await Promise.all([
-      supabase.from("products").select("id,name,price").eq("is_active", true),
+      supabase.from("products").select("id,name,price,is_gift_box").eq("is_active", true),
       supabase.from("profiles").select("id,username,character_name,sport").order("character_name"),
       supabase.from("inventory").select("id,product_name,purchased_at,used_at,gift_from_name").eq("user_id", userId).order("purchased_at", { ascending: false })
     ]);
@@ -93,6 +101,7 @@ export default function StoreActionEnhancer() {
   }, [supabase, showNotice]);
 
   const openGift = useCallback((product: ShopProduct) => {
+    setGiftFile(null);
     setGiftProduct(product);
     setRecipientId("");
     setRecipientQuery("");
@@ -121,19 +130,36 @@ export default function StoreActionEnhancer() {
       else return showNotice("일치하는 캐릭터를 찾을 수 없습니다. 닉네임이나 @아이디를 확인해주세요.", true);
     }
 
+    if (sending) return;
+    if (giftProduct.is_gift_box && !giftFile) return showNotice("선물 이미지를 첨부해주세요.", true);
+    if (giftFile && (!['image/png', 'image/jpeg', 'image/webp', 'image/gif'].includes(giftFile.type) || giftFile.size > 10 * 1024 * 1024)) {
+      return showNotice("PNG, JPG, WEBP, GIF 이미지 파일을 10MB 이하로 첨부해주세요.", true);
+    }
     setSending(true);
-    const { error } = await supabase.rpc("gift_product", {
-      target_product_id: giftProduct.id,
-      recipient_id: recipient.id
-    });
-    setSending(false);
-    if (error) return showNotice(error.message, true);
+    let uploadedPath: string | null = null;
+    try {
+      if (giftProduct.is_gift_box && giftFile && currentUserId) {
+        const extensions: Record<string, string> = { 'image/png': 'png', 'image/jpeg': 'jpg', 'image/webp': 'webp', 'image/gif': 'gif' };
+        uploadedPath = `${currentUserId}/${crypto.randomUUID()}.${extensions[giftFile.type]}`;
+        const upload = await supabase.storage.from("costume-gifts").upload(uploadedPath, giftFile, { contentType: giftFile.type, upsert: false });
+        if (upload.error) throw upload.error;
+      }
+      const { error } = giftProduct.is_gift_box
+        ? await supabase.rpc("gift_costume_box", { target_product_id: giftProduct.id, recipient_id: recipient.id, image_path: uploadedPath })
+        : await supabase.rpc("gift_product", { target_product_id: giftProduct.id, recipient_id: recipient.id });
+      if (error) throw error;
+    } catch (error) {
+      if (uploadedPath) await supabase.storage.from("costume-gifts").remove([uploadedPath]);
+      showNotice(error instanceof Error ? error.message : "선물을 보내지 못했습니다.", true);
+      return;
+    } finally { setSending(false); }
+    setGiftFile(null);
     setGiftProduct(null);
     setRecipientId("");
     setRecipientQuery("");
     showNotice(`${recipient.character_name}에게 선물을 보냈습니다.`);
     window.dispatchEvent(new CustomEvent("athlete-data-changed"));
-  }, [supabase, giftProduct, recipientId, recipientQuery, availableMembers, showNotice]);
+  }, [supabase, giftProduct, recipientId, recipientQuery, availableMembers, showNotice, giftFile, currentUserId, sending]);
 
   useEffect(() => {
     if (!products.length) return;
@@ -173,7 +199,8 @@ export default function StoreActionEnhancer() {
         giftButton.disabled = originalAdd.disabled;
         giftButton.addEventListener("click", () => openGift(product));
 
-        actions.append(cartButton, buyButton, giftButton);
+        if (product.is_gift_box) { actions.append(giftButton); actions.classList.add("gift-only-actions"); }
+        else actions.append(cartButton, buyButton, giftButton);
         body.append(actions);
       });
     }
@@ -237,10 +264,15 @@ export default function StoreActionEnhancer() {
             </div>}
           </div>
         </label>
+        {giftProduct.is_gift_box && <label className="costume-file-field">선물 이미지
+          <input type="file" accept="image/png,image/jpeg,image/webp,image/gif" disabled={sending} onChange={event => setGiftFile(event.target.files?.[0] || null)}/>
+          <small>PNG · JPG · WEBP · GIF / 최대 10MB. 받는 사람이 상자를 열면 보여요.</small>
+          {giftPreview && <img className="costume-file-preview" src={giftPreview} alt="첨부한 선물 이미지 미리보기"/>}
+        </label>}
         {recipientId && <div className="gift-selected">받는 사람: <strong>{availableMembers.find(member => member.id === recipientId)?.character_name}</strong></div>}
         <div className="gift-modal-actions">
           <button type="button" className="button ghost" disabled={sending} onClick={() => setGiftProduct(null)}>취소</button>
-          <button type="button" className="button primary" disabled={!recipientQuery.trim() || sending} onClick={sendGift}>{sending ? "선물 중…" : "선물 보내기"}</button>
+          <button type="button" className="button primary" disabled={!recipientQuery.trim() || sending || (giftProduct.is_gift_box && !giftFile)} onClick={sendGift}>{sending ? "선물 중…" : "선물 보내기"}</button>
         </div>
       </section>
     </div>}
