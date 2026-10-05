@@ -8,6 +8,7 @@ type ShopProduct = {
   name: string;
   price: number;
   is_gift_box?: boolean;
+  gift_options?: string[];
 };
 
 type GiftMember = {
@@ -34,6 +35,8 @@ export default function StoreActionEnhancer() {
   const [giftProduct, setGiftProduct] = useState<ShopProduct | null>(null);
   const [recipientId, setRecipientId] = useState("");
   const [recipientQuery, setRecipientQuery] = useState("");
+  const [giftChoice, setGiftChoice] = useState("");
+  const [customGiftChoice, setCustomGiftChoice] = useState("");
   const [giftFile, setGiftFile] = useState<File | null>(null);
   const [giftPreview, setGiftPreview] = useState("");
   useEffect(() => {
@@ -57,7 +60,7 @@ export default function StoreActionEnhancer() {
     if (!userId) return;
 
     const [productsRes, membersRes, inventoryRes] = await Promise.all([
-      supabase.from("products").select("id,name,price,is_gift_box").eq("is_active", true),
+      supabase.from("products").select("id,name,price,is_gift_box,gift_options").eq("is_active", true),
       supabase.from("profiles").select("id,username,character_name,sport").order("character_name"),
       supabase.from("inventory").select("id,product_name,purchased_at,used_at,gift_from_name").eq("user_id", userId).order("purchased_at", { ascending: false })
     ]);
@@ -101,6 +104,8 @@ export default function StoreActionEnhancer() {
   }, [supabase, showNotice]);
 
   const openGift = useCallback((product: ShopProduct) => {
+    setGiftChoice("");
+    setCustomGiftChoice("");
     setGiftFile(null);
     setGiftProduct(product);
     setRecipientId("");
@@ -131,6 +136,8 @@ export default function StoreActionEnhancer() {
     }
 
     if (sending) return;
+    const choice = (giftChoice === "__custom__" ? customGiftChoice : giftChoice).trim();
+    if (giftProduct.gift_options?.length && (!choice || choice.length > 30)) return showNotice("보낼 머리띠 종류를 선택하거나 30자 이하로 입력해주세요.", true);
     if (giftProduct.is_gift_box && !giftFile) return showNotice("선물 이미지를 첨부해주세요.", true);
     if (giftFile && (!['image/png', 'image/jpeg', 'image/webp', 'image/gif'].includes(giftFile.type) || giftFile.size > 10 * 1024 * 1024)) {
       return showNotice("PNG, JPG, WEBP, GIF 이미지 파일을 10MB 이하로 첨부해주세요.", true);
@@ -146,7 +153,9 @@ export default function StoreActionEnhancer() {
       }
       const { error } = giftProduct.is_gift_box
         ? await supabase.rpc("gift_costume_box", { target_product_id: giftProduct.id, recipient_id: recipient.id, image_path: uploadedPath })
-        : await supabase.rpc("gift_product", { target_product_id: giftProduct.id, recipient_id: recipient.id });
+        : giftProduct.gift_options?.length
+          ? await supabase.rpc("gift_product_choice", { target_product_id: giftProduct.id, recipient_id: recipient.id, gift_choice: choice })
+          : await supabase.rpc("gift_product", { target_product_id: giftProduct.id, recipient_id: recipient.id });
       if (error) throw error;
     } catch (error) {
       if (uploadedPath) await supabase.storage.from("costume-gifts").remove([uploadedPath]);
@@ -157,9 +166,9 @@ export default function StoreActionEnhancer() {
     setGiftProduct(null);
     setRecipientId("");
     setRecipientQuery("");
-    showNotice(`${recipient.character_name}에게 선물을 보냈습니다.`);
+    showNotice(`${recipient.character_name}에게 ${choice ? choice + " 머리띠를" : "선물을"} 보냈습니다.`);
     window.dispatchEvent(new CustomEvent("athlete-data-changed"));
-  }, [supabase, giftProduct, recipientId, recipientQuery, availableMembers, showNotice, giftFile, currentUserId, sending]);
+  }, [supabase, giftProduct, recipientId, recipientQuery, availableMembers, showNotice, giftFile, currentUserId, sending, giftChoice, customGiftChoice]);
 
   useEffect(() => {
     if (!products.length) return;
@@ -264,6 +273,15 @@ export default function StoreActionEnhancer() {
             </div>}
           </div>
         </label>
+        {!!giftProduct.gift_options?.length && <div className="gift-choice-field">
+          <label>머리띠 종류<select value={giftChoice} disabled={sending} onChange={event => setGiftChoice(event.target.value)}>
+            <option value="">어떤 머리띠로 보낼까요?</option>
+            {giftProduct.gift_options.map(option => <option key={option} value={option}>{option} 머리띠</option>)}
+            <option value="__custom__">다른 동물 직접 입력</option>
+          </select></label>
+          {giftChoice === "__custom__" && <label>동물 이름<input value={customGiftChoice} disabled={sending} maxLength={30} onChange={event => setCustomGiftChoice(event.target.value)} placeholder="예: 늑대, 판다, 수달"/></label>}
+          {(giftChoice === "__custom__" ? customGiftChoice.trim() : giftChoice) && <p>보낼 머리띠: <strong>{giftChoice === "__custom__" ? customGiftChoice.trim() : giftChoice}</strong></p>}
+        </div>}
         {giftProduct.is_gift_box && <label className="costume-file-field">선물 이미지
           <input type="file" accept="image/png,image/jpeg,image/webp,image/gif" disabled={sending} onChange={event => setGiftFile(event.target.files?.[0] || null)}/>
           <small>PNG · JPG · WEBP · GIF / 최대 10MB. 받는 사람이 상자를 열면 보여요.</small>
@@ -272,7 +290,7 @@ export default function StoreActionEnhancer() {
         {recipientId && <div className="gift-selected">받는 사람: <strong>{availableMembers.find(member => member.id === recipientId)?.character_name}</strong></div>}
         <div className="gift-modal-actions">
           <button type="button" className="button ghost" disabled={sending} onClick={() => setGiftProduct(null)}>취소</button>
-          <button type="button" className="button primary" disabled={!recipientQuery.trim() || sending || (giftProduct.is_gift_box && !giftFile)} onClick={sendGift}>{sending ? "선물 중…" : "선물 보내기"}</button>
+          <button type="button" className="button primary" disabled={!recipientQuery.trim() || sending || (giftProduct.is_gift_box && !giftFile) || (!!giftProduct.gift_options?.length && !(giftChoice === "__custom__" ? customGiftChoice.trim() : giftChoice))} onClick={sendGift}>{sending ? "선물 중…" : "선물 보내기"}</button>
         </div>
       </section>
     </div>}
