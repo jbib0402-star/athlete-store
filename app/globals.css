@@ -318,3 +318,12 @@ textarea { resize:vertical; }
 .staff-member-row strong { font-size:16px; }
 .staff-member-row span { color:var(--muted); }
 .staff-role-label { min-width:68px; font-weight:700; }
+
+.member-list-controls { display:flex; align-items:end; gap:12px; margin:16px 0 12px; }
+.member-list-controls label:first-child { flex:1; min-width:0; }
+.member-list-controls label:last-child { flex:none; width:120px; }
+.member-list-summary { color:var(--muted); font-size:.78rem; margin:0 0 12px; }
+.member-pagination { display:flex; align-items:center; justify-content:center; flex-wrap:wrap; gap:6px; margin-top:18px; padding-top:16px; border-top:1px solid var(--line); }
+.member-pagination span { color:var(--muted); font-size:.75rem; margin-left:6px; }
+.member-pagination button:disabled { opacity:.4; cursor:default; }
+@media(max-width:480px) { .member-list-controls { gap:8px; } .member-list-controls label:last-child { width:100px; } .member-pagination span { width:100%; text-align:center; margin:6px 0 0; } }
