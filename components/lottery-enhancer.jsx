@@ -309,6 +309,7 @@ export default function LotteryEnhancer() {
           if (body?.action === "create_product" || body?.action === "update_product") {
             const isCreate = body.action === "create_product";
             const root = document.querySelector(isCreate ? ".lottery-create-fields" : ".lottery-edit-fields");
+            if (!isCreate && body.payload?.special_type !== undefined) return previousFetch(input, init);
             const type = root?.querySelector(".lottery-item-type")?.value || "standard";
             const prizes = readPrizes(root);
             if (type === "lottery") {
