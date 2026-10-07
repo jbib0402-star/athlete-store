@@ -39,6 +39,10 @@ export default function LotteryConfigBridge() {
 
         const isCreate = body.action === "create_product";
         const root = document.querySelector<HTMLElement>(isCreate ? ".lottery-create-fields" : ".lottery-edit-fields");
+        // React edit forms already supply validated configuration in the request.
+        if (body.action === "update_product" && body.payload?.special_type !== undefined) {
+          return previousFetch(input, init);
+        }
         const type = root?.querySelector<HTMLSelectElement>(".lottery-item-type")?.value || "standard";
         const prizes = readPrizes(root);
 
