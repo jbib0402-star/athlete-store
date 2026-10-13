@@ -1,11 +1,11 @@
 "use client";
 
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, RotateCcw, Trophy, X, Zap } from "lucide-react";
 import { getSupabaseBrowser } from "@/lib/supabase";
 
 type Direction = "left" | "up" | "right" | "down";
-type GameKind = "direction" | "timing" | "target";
+type GameKind = "direction" | "numbers" | "target";
 type Answer = Direction | "miss" | number | null;
 type Phase = "closed" | "ready" | "briefing" | "countdown" | "playing" | "submitting" | "result";
 
@@ -43,8 +43,9 @@ export default function AgilityTrainingGame() {
   const [gameKind, setGameKind] = useState<GameKind>("direction");
   const [challenges, setChallenges] = useState<number[]>([]);
   const [starting, setStarting] = useState(false);
-  const timingCursor = useRef<HTMLSpanElement | null>(null);
-  const displayedTimingMs = useRef(0);
+  const numberAnswers = useRef<Answer[]>([]);
+  const latestFinish = useRef<((answers: Answer[]) => Promise<void>) | null>(null);
+  const [wrongNumber, setWrongNumber] = useState<number | null>(null);
   const startingRef = useRef(false);
   const [sequence, setSequence] = useState<Direction[]>([]);
   const [sessionId, setSessionId] = useState("");
@@ -67,7 +68,7 @@ export default function AgilityTrainingGame() {
     setSequence([]);
     setSessionId("");
     setIndex(0);
-    setAnswers([]);
+    setAnswers([]); numberAnswers.current = []; setWrongNumber(null);
     setCorrectCount(0);
     setRequiredCorrect(7);
     setRoundTimeMs(1400);
@@ -113,7 +114,7 @@ export default function AgilityTrainingGame() {
       if (!card.querySelector(".agility-training-note")) {
         const note = document.createElement("p");
         note.className = "agility-training-note";
-        note.textContent = "방향키 · 타이밍 스톱 · 표적 터치 중 랜덤 게임! 10회 중 7회 성공하면 훈련 완료.";
+        note.textContent = "방향키 · 숫자 순서 터치 · 표적 터치 중 랜덤 게임! 숫자는 1~10을 한 판에 완료하면 성공.";
         button.parentElement?.insertBefore(note, button);
       }
     };
@@ -155,9 +156,11 @@ export default function AgilityTrainingGame() {
       const nextSequence = Array.isArray(raw?.sequence) ? raw.sequence.filter(isDirection) : [];
       const kind = raw?.game_type;
       if (!raw?.session_id || nextSequence.length !== TOTAL_ROUNDS ||
-          (kind !== "direction" && kind !== "timing" && kind !== "target")) throw new Error("훈련 데이터를 불러오지 못했습니다.");
+          (kind !== "direction" && kind !== "numbers" && kind !== "target")) throw new Error("훈련 데이터를 불러오지 못했습니다.");
       const nextChallenges = Array.isArray(raw.challenges) ? raw.challenges.map(Number) : [];
       if (nextChallenges.length !== TOTAL_ROUNDS || nextChallenges.some(value => !Number.isInteger(value))) throw new Error("훈련 문제를 불러오지 못했습니다.");
+      if (kind === "numbers" && (new Set(nextChallenges).size !== 10 || nextChallenges.some(value => value < 1 || value > 10))) throw new Error("숫자 문제를 불러오지 못했습니다.");
+      numberAnswers.current = []; setWrongNumber(null);
       setGameKind(kind); setChallenges(nextChallenges); setSessionId(String(raw.session_id));
       setSequence(nextSequence); setRequiredCorrect(Number(raw.required_correct) || 7);
       setRoundTimeMs(Number(raw.round_time_ms) || 1400); setIndex(0); setAnswers([]);
@@ -203,14 +206,12 @@ export default function AgilityTrainingGame() {
   }, [supabase, sessionId, correctCount, requiredCorrect]);
 
   const submitDirection = useCallback((direction: Answer) => {
-    if (phase !== "playing" || inputLockRef.current || index >= sequence.length) return;
+    if (phase !== "playing" || gameKind === "numbers" || inputLockRef.current || index >= sequence.length) return;
     inputLockRef.current = true;
 
     const expected = sequence[index];
-    const position = typeof direction === "number" ? 100 - Math.abs(100 - (direction % 1800) / 9) : -1000;
     const correct = gameKind === "direction" ? direction === expected
-      : gameKind === "target" ? direction === challenges[index]
-      : typeof direction === "number" && Math.abs(position - challenges[index]) <= 12;
+      : direction === challenges[index];
     const nextAnswers = [...answers, direction];
     setAnswers(nextAnswers);
     if (correct) setCorrectCount(value => value + 1);
@@ -229,45 +230,42 @@ export default function AgilityTrainingGame() {
   }, [phase, index, sequence, answers, finishTraining, gameKind, challenges]);
 
   useEffect(() => {
-    if (phase !== "playing" || feedback || !sequence[index]) return;
+    if (phase !== "playing" || gameKind === "numbers" || feedback || !sequence[index]) return;
     const timer = window.setTimeout(() => submitDirection(gameKind === "direction" ? "miss" : null), roundTimeMs);
     return () => window.clearTimeout(timer);
   }, [phase, index, sequence, roundTimeMs, submitDirection, gameKind, feedback]);
 
-  const stopTiming = useCallback(() => {
-    // Judge the exact frame shown to the player, not a later click/release time.
-    submitDirection(displayedTimingMs.current);
-  }, [submitDirection]);
+  useEffect(() => { latestFinish.current = finishTraining; }, [finishTraining]);
 
-  useLayoutEffect(() => {
-    if (phase !== "playing" || feedback || gameKind !== "timing") return;
-    const cursor = timingCursor.current;
-    if (!cursor) return;
-    const startedAt = performance.now();
-    displayedTimingMs.current = 0;
-    cursor.style.left = "0%";
-    let frame: number;
-    const animate = (timestamp: number) => {
+  const submitNumber = useCallback((cell: number) => {
+    if (phase !== "playing" || gameKind !== "numbers" || inputLockRef.current || numberAnswers.current.includes(cell)) return;
+    const nextNumber = numberAnswers.current.length + 1;
+    if (challenges[cell] !== nextNumber) { setWrongNumber(cell); return; }
+    const nextAnswers = [...numberAnswers.current, cell];
+    numberAnswers.current = nextAnswers;
+    setAnswers(nextAnswers); setCorrectCount(nextAnswers.length); setWrongNumber(null);
+    if (nextAnswers.length === 10) {
+      inputLockRef.current = true;
+      void finishTraining(nextAnswers);
+    }
+  }, [phase, gameKind, challenges, finishTraining]);
+
+  useEffect(() => {
+    if (phase !== "playing" || gameKind !== "numbers") return;
+    // One deadline for the whole board; taps and mistakes never restart it.
+    const timer = window.setTimeout(() => {
       if (inputLockRef.current) return;
-      const elapsed = Math.min(roundTimeMs, Math.max(0, Math.floor(timestamp - startedAt)));
-      displayedTimingMs.current = elapsed;
-      // Only move the cursor; avoid rendering the entire game every frame.
-      cursor.style.left = `${100 - Math.abs(100 - (elapsed % 1800) / 9)}%`;
-      frame = window.requestAnimationFrame(animate);
-    };
-    frame = window.requestAnimationFrame(animate);
-    return () => window.cancelAnimationFrame(frame);
-  }, [phase, index, gameKind, feedback, roundTimeMs]);
+      inputLockRef.current = true;
+      const padded = [...numberAnswers.current, ...Array(10 - numberAnswers.current.length).fill(null)] as Answer[];
+      void latestFinish.current?.(padded);
+    }, roundTimeMs);
+    return () => window.clearTimeout(timer);
+  }, [phase, gameKind, sessionId, roundTimeMs]);
 
   useEffect(() => {
     if (phase !== "playing") return;
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.repeat) return;
-      if (gameKind === "timing" && (event.key === " " || event.key === "Enter")) {
-        event.preventDefault();
-        stopTiming();
-        return;
-      }
       if (gameKind !== "direction") return;
       const map: Record<string, Direction | undefined> = {
         ArrowLeft: "left", ArrowUp: "up", ArrowRight: "right", ArrowDown: "down",
@@ -281,7 +279,7 @@ export default function AgilityTrainingGame() {
     };
     window.addEventListener("keydown", onKeyDown, { passive: false });
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [phase, submitDirection, gameKind, stopTiming]);
+  }, [phase, submitDirection, gameKind]);
 
   useEffect(() => {
     if (phase === "closed") return;
@@ -317,14 +315,14 @@ export default function AgilityTrainingGame() {
 
       {(phase === "ready" || phase === "briefing") && <>
         <div className="agility-game-kicker"><Zap size={15}/> RANDOM TRAINING</div>
-        <h2 id="agility-game-title">{phase === "ready" ? "오늘의 랜덤 훈련" : gameKind === "timing" ? "타이밍 스톱" : gameKind === "target" ? "표적 터치" : "순발력 방향키 훈련"}</h2>
-        <p className="agility-game-lead">{phase === "ready" ? "방향키 · 타이밍 스톱 · 표적 터치 중 하나가 랜덤으로 나옵니다." : gameKind === "timing" ? "움직이는 막대가 초록 구간에 들어왔을 때 정지 버튼을 누르세요." : gameKind === "target" ? "9칸 중 초록색 표적을 빠르게 터치하세요." : "화면에 나타나는 방향과 같은 버튼을 제한시간 안에 눌러주세요."}</p>
+        <h2 id="agility-game-title">{phase === "ready" ? "오늘의 랜덤 훈련" : gameKind === "numbers" ? "숫자 순서 터치" : gameKind === "target" ? "표적 터치" : "순발력 방향키 훈련"}</h2>
+        <p className="agility-game-lead">{phase === "ready" ? "방향키 · 숫자 순서 터치 · 표적 터치 중 하나가 랜덤으로 나옵니다." : gameKind === "numbers" ? "섞여 있는 숫자를 1부터 10까지 순서대로 누르세요. 30초 안에 한 판만 완료하면 성공!" : gameKind === "target" ? "9칸 중 초록색 표적을 빠르게 터치하세요." : "화면에 나타나는 방향과 같은 버튼을 제한시간 안에 눌러주세요."}</p>
         <div className="agility-rules">
-          <div><b>10</b><span>총 도전 횟수</span></div>
-          <div><b>7+</b><span>완료 기준</span></div>
+          <div><b>{phase === "briefing" && gameKind === "numbers" ? "1판" : phase === "ready" ? "게임별" : "10회"}</b><span>진행 횟수</span></div>
+          <div><b>{phase === "briefing" && gameKind === "numbers" ? "1~10" : phase === "ready" ? "게임별" : "7+"}</b><span>완료 기준</span></div>
           <div><b>{phase === "ready" ? "3종" : (roundTimeMs / 1000) + "s"}</b><span>{phase === "ready" ? "랜덤 게임" : "1회 제한시간"}</span></div>
         </div>
-        <p className="agility-device-help">{phase === "ready" ? "모든 게임은 같은 일일 훈련 횟수와 보상을 사용해요." : gameKind === "timing" ? "모바일은 정지 버튼 · PC는 클릭, 스페이스 또는 Enter" : gameKind === "target" ? "모바일은 표적 터치 · PC는 표적 클릭" : "PC는 방향키 또는 WASD · 모바일은 화면 방향 버튼"}</p>
+        <p className="agility-device-help">{phase === "ready" ? "모든 게임은 같은 일일 훈련 횟수와 보상을 사용해요." : gameKind === "numbers" ? "잘못 눌러도 계속할 수 있어요. 다음 숫자를 확인하고 다시 누르세요." : gameKind === "target" ? "모바일은 표적 터치 · PC는 표적 클릭" : "PC는 방향키 또는 WASD · 모바일은 화면 방향 버튼"}</p>
         {errorText && <div className="agility-error">{errorText}</div>}
         <button type="button" className="button primary wide agility-start" disabled={starting} onClick={() => phase === "ready" ? void beginTraining() : setPhase("countdown")}>{starting ? "게임 선택 중…" : phase === "ready" ? "랜덤 훈련 시작" : "준비 완료 · 시작"} <Zap size={18}/></button>
       </>}
@@ -337,8 +335,8 @@ export default function AgilityTrainingGame() {
 
       {phase === "playing" && currentMeta && <>
         <div className="agility-game-status">
-          <span>ROUND <b>{index + 1}</b> / {sequence.length}</span>
-          <span>SUCCESS <b>{correctCount}</b></span>
+          <span>{gameKind === "numbers" ? <>BOARD <b>1</b> / 1</> : <>ROUND <b>{index + 1}</b> / {sequence.length}</>}</span>
+          <span>{gameKind === "numbers" ? "TOUCHED" : "SUCCESS"} <b>{correctCount}</b>{gameKind === "numbers" ? " / 10" : ""}</span>
         </div>
         <div className="agility-round-track"><i key={index} style={{ animationDuration: `${roundTimeMs}ms` }}/></div>
         {gameKind === "direction" ? <>        <div className={`agility-direction-card ${feedback || ""}`}>
@@ -352,20 +350,16 @@ export default function AgilityTrainingGame() {
           <button type="button" className="down" aria-label="아래" onClick={() => submitDirection("down")}><ArrowDown/></button>
           <button type="button" className="right" aria-label="오른쪽" onClick={() => submitDirection("right")}><ArrowRight/></button>
         </div>
-</> : gameKind === "timing" ? <div className="timing-game">
-          <p>초록 구간에서 멈추세요!</p>
-          <div className="timing-lane" aria-label="움직이는 타이밍 막대">
-            <span className="timing-zone" style={{ left: `${challenges[index] - 12}%`, width: "24%" }} />
-            <span ref={timingCursor} className="timing-cursor" style={{ left: "0%" }} />
-          </div>
-          <strong aria-live="polite">{feedback === "correct" ? "GOOD!" : feedback ? "MISS!" : "집중!"}</strong>
-          <button type="button" className="button primary wide timing-stop" disabled={!!feedback} onPointerDown={event => { if (event.button !== 0 || !event.isPrimary) return; event.preventDefault(); stopTiming(); }} onClick={event => { if (event.detail === 0) stopTiming(); }}>정지!</button>
+</> : gameKind === "numbers" ? <div className="number-order-game">
+          <p>다음 숫자 <strong>{Math.min(10, correctCount + 1)}</strong>를 누르세요!</p>
+          <div className="number-order-grid">{challenges.map((number, cell) => <button type="button" key={cell} className={`number-order-cell ${answers.includes(cell) ? "done" : wrongNumber === cell ? "wrong" : ""}`} aria-label={`숫자 ${number}`} disabled={answers.includes(cell)} onPointerDown={event => { if (event.button !== 0 || !event.isPrimary) return; event.preventDefault(); submitNumber(cell); }} onClick={event => { if (event.detail === 0) submitNumber(cell); }}>{number}{answers.includes(cell) && <small>✓</small>}</button>)}</div>
+          <strong className="number-order-feedback" aria-live="polite">{wrongNumber !== null ? `다음은 ${correctCount + 1}번이에요!` : `${correctCount} / 10 완료`}</strong>
         </div> : <div className="target-game">
           <p>초록 표적을 터치하세요!</p>
           <div className="target-grid">{Array.from({ length: 9 }, (_, cell) => <button type="button" key={cell} className={cell === challenges[index] ? "target-cell active" : "target-cell"} aria-label={cell === challenges[index] ? "표적" : `빈 칸 ${cell + 1}`} disabled={!!feedback} onClick={() => submitDirection(cell)}>{cell === challenges[index] ? "◎" : "·"}</button>)}</div>
           <strong aria-live="polite">{feedback === "correct" ? "GOOD!" : feedback ? "MISS!" : "TOUCH!"}</strong>
         </div>}
-        <p className="agility-game-tip">7개 이상 맞히면 오늘 훈련 1회가 완료됩니다.</p>
+        <p className="agility-game-tip">{gameKind === "numbers" ? "30초 안에 1~10을 모두 누르면 오늘 훈련 1회 완료!" : "7개 이상 맞히면 오늘 훈련 1회가 완료됩니다."}</p>
       </>}
 
       {phase === "submitting" && <div className="agility-submitting">
@@ -381,7 +375,7 @@ export default function AgilityTrainingGame() {
         <strong className="agility-score">{result.score} <small>/ {result.total}</small></strong>
         {result.error ? <div className="agility-error">{result.error}</div> : result.success
           ? <p><b>+{result.reward.toLocaleString("ko-KR")} P</b> 훈련 보상이 지급되었습니다.</p>
-          : <p>{result.required_correct}개 이상 성공하면 완료돼요. 이번 시도는 일일 훈련 횟수에서 차감되지 않았습니다.</p>}
+          : <p>{gameKind === "numbers" ? "1~10을 모두 순서대로 누르면 완료돼요." : `${result.required_correct}개 이상 성공하면 완료돼요.`} 이번 시도는 일일 훈련 횟수에서 차감되지 않았습니다.</p>}
         <button type="button" className="button primary wide" onClick={result.success ? closeGame : retry}>
           {result.success ? "확인" : "다시 도전"}{result.success ? <Trophy size={18}/> : <RotateCcw size={18}/>}
         </button>
