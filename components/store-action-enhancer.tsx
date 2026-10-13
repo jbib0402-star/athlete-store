@@ -8,6 +8,7 @@ type ShopProduct = {
   name: string;
   price: number;
   is_gift_box?: boolean;
+  special_type?: string;
   gift_options?: string[];
 };
 
@@ -61,7 +62,7 @@ export default function StoreActionEnhancer() {
     if (!userId) return;
 
     const [productsRes, membersRes, inventoryRes] = await Promise.all([
-      supabase.from("products").select("id,name,price,is_gift_box,gift_options").eq("is_active", true),
+      supabase.from("products").select("id,name,price,is_gift_box,gift_options,special_type").eq("is_active", true),
       supabase.from("profiles").select("id,username,character_name,sport").order("character_name"),
       supabase.from("inventory").select("id,product_name,purchased_at,used_at,gift_from_name").eq("user_id", userId).order("purchased_at", { ascending: false })
     ]);
@@ -212,7 +213,8 @@ export default function StoreActionEnhancer() {
         giftButton.disabled = originalAdd.disabled;
         giftButton.addEventListener("click", () => openGift(product));
 
-        if (product.is_gift_box) { actions.append(giftButton); actions.classList.add("gift-only-actions"); }
+        if (product.special_type === "lottery") { actions.append(buyButton); actions.classList.add("gift-only-actions"); }
+        else if (product.is_gift_box) { actions.append(giftButton); actions.classList.add("gift-only-actions"); }
         else actions.append(cartButton, buyButton, giftButton);
         body.append(actions);
       });

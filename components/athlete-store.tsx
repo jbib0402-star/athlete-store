@@ -107,7 +107,7 @@ function ProductCard({ product, currency, onAdd }: { product: Product; currency:
     </div>
     <div className="product-body"><div><h3>{product.name}</h3><p>{product.description}</p></div>
       <div className="product-meta"><div><strong>{formatPoints(product.price)} {currency}</strong><small>{product.stock == null ? "상시 판매" : `남은 수량 ${product.stock}`}{product.purchase_limit ? ` · 1인 ${product.purchase_limit}개` : ""}</small></div>
-        <button className="icon-button dark" onClick={() => onAdd(product)} disabled={soldOut} hidden={product.is_gift_box} aria-label={`${product.name} 장바구니 담기`}><Plus size={21}/></button>
+        <button className="icon-button dark" onClick={() => onAdd(product)} disabled={soldOut} hidden={product.is_gift_box || product.special_type === "lottery"} aria-label={`${product.name} 장바구니 담기`}><Plus size={21}/></button>
       </div>
     </div>
   </article>;
@@ -358,6 +358,7 @@ export default function AthleteStore() {
 
   async function addToCart(product: Product) {
     if (!profile) return;
+    if (product.special_type === "lottery") return toast("일일 복권은 바로 구매만 가능합니다.", "error");
     const existing = cart.find(i => i.product.id === product.id); const nextQty = (existing?.quantity || 0) + 1;
     if (product.purchase_limit && nextQty > product.purchase_limit) return toast(`이 상품은 ${product.purchase_limit}개까지 구매할 수 있습니다.`, "error");
     if (demo || !supabase) { if (existing) setCart(v => v.map(i => i.id === existing.id ? { ...i, quantity: nextQty } : i)); else setCart(v => [...v, { id: `cart-${Date.now()}`, quantity: 1, product }]); toast("장바구니에 담았습니다."); return; }
