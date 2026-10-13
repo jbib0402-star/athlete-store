@@ -37,6 +37,7 @@ export default function StoreActionEnhancer() {
   const [recipientQuery, setRecipientQuery] = useState("");
   const [giftChoice, setGiftChoice] = useState("");
   const [customGiftChoice, setCustomGiftChoice] = useState("");
+  const [giftLetter, setGiftLetter] = useState("");
   const [giftFile, setGiftFile] = useState<File | null>(null);
   const [giftPreview, setGiftPreview] = useState("");
   useEffect(() => {
@@ -106,6 +107,7 @@ export default function StoreActionEnhancer() {
   const openGift = useCallback((product: ShopProduct) => {
     setGiftChoice("");
     setCustomGiftChoice("");
+    setGiftLetter("");
     setGiftFile(null);
     setGiftProduct(product);
     setRecipientId("");
@@ -138,6 +140,7 @@ export default function StoreActionEnhancer() {
     if (sending) return;
     const choice = (giftChoice === "__custom__" ? customGiftChoice : giftChoice).trim();
     if (giftProduct.gift_options?.length && (!choice || choice.length > 30)) return showNotice("보낼 머리띠 종류를 선택하거나 30자 이하로 입력해주세요.", true);
+    if (giftProduct.is_gift_box && Array.from(giftLetter).length > 2000) return showNotice("편지는 2,000자 이하로 작성해주세요.", true);
     if (giftProduct.is_gift_box && !giftFile) return showNotice("선물 이미지를 첨부해주세요.", true);
     if (giftFile && (!['image/png', 'image/jpeg', 'image/webp', 'image/gif'].includes(giftFile.type) || giftFile.size > 10 * 1024 * 1024)) {
       return showNotice("PNG, JPG, WEBP, GIF 이미지 파일을 10MB 이하로 첨부해주세요.", true);
@@ -152,7 +155,7 @@ export default function StoreActionEnhancer() {
         if (upload.error) throw upload.error;
       }
       const { error } = giftProduct.is_gift_box
-        ? await supabase.rpc("gift_costume_box", { target_product_id: giftProduct.id, recipient_id: recipient.id, image_path: uploadedPath })
+        ? await supabase.rpc("gift_costume_box_letter", { target_product_id: giftProduct.id, recipient_id: recipient.id, image_path: uploadedPath, letter_text: giftLetter.trim() || null })
         : giftProduct.gift_options?.length
           ? await supabase.rpc("gift_product_choice", { target_product_id: giftProduct.id, recipient_id: recipient.id, gift_choice: choice })
           : await supabase.rpc("gift_product", { target_product_id: giftProduct.id, recipient_id: recipient.id });
@@ -162,13 +165,14 @@ export default function StoreActionEnhancer() {
       showNotice(error instanceof Error ? error.message : "선물을 보내지 못했습니다.", true);
       return;
     } finally { setSending(false); }
+    setGiftLetter("");
     setGiftFile(null);
     setGiftProduct(null);
     setRecipientId("");
     setRecipientQuery("");
     showNotice(`${recipient.character_name}에게 ${choice ? choice + " 머리띠를" : "선물을"} 보냈습니다.`);
     window.dispatchEvent(new CustomEvent("athlete-data-changed"));
-  }, [supabase, giftProduct, recipientId, recipientQuery, availableMembers, showNotice, giftFile, currentUserId, sending, giftChoice, customGiftChoice]);
+  }, [supabase, giftProduct, recipientId, recipientQuery, availableMembers, showNotice, giftFile, currentUserId, sending, giftChoice, customGiftChoice, giftLetter]);
 
   useEffect(() => {
     if (!products.length) return;
@@ -286,6 +290,10 @@ export default function StoreActionEnhancer() {
           <input type="file" accept="image/png,image/jpeg,image/webp,image/gif" disabled={sending} onChange={event => setGiftFile(event.target.files?.[0] || null)}/>
           <small>PNG · JPG · WEBP · GIF / 최대 10MB. 받는 사람이 상자를 열면 보여요.</small>
           {giftPreview && <img className="costume-file-preview" src={giftPreview} alt="첨부한 선물 이미지 미리보기"/>}
+        </label>}
+        {giftProduct.is_gift_box && <label className="costume-letter-field">함께 보낼 편지 <small>선택</small>
+          <textarea rows={5} maxLength={2000} value={giftLetter} disabled={sending} onChange={event => setGiftLetter(event.target.value)} placeholder="선물과 함께 전하고 싶은 말을 적어주세요." />
+          <small>{giftLetter.length.toLocaleString()} / 2,000자 · 상자를 열면 이미지와 함께 보여요.</small>
         </label>}
         {recipientId && <div className="gift-selected">받는 사람: <strong>{availableMembers.find(member => member.id === recipientId)?.character_name}</strong></div>}
         <div className="gift-modal-actions">

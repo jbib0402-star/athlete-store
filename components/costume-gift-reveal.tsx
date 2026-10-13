@@ -10,6 +10,7 @@ export default function CostumeGiftReveal({ itemId, name, onClose, onOpened }: {
   const supabase = useMemo(() => getSupabaseBrowser(), []);
   const [phase, setPhase] = useState<"ready" | "opening" | "revealed" | "error">("ready");
   const [imageUrl, setImageUrl] = useState("");
+  const [letter, setLetter] = useState("");
   const [from, setFrom] = useState("");
   const [error, setError] = useState("");
   const dialog = useRef<HTMLElement>(null);
@@ -50,7 +51,7 @@ export default function CostumeGiftReveal({ itemId, name, onClose, onOpened }: {
         image.onerror = () => { clearTimeout(timeout); reject(new Error("이미지를 불러오지 못했습니다. 다시 시도해주세요.")); };
         image.src = signed.signedUrl;
       })]);
-      setFrom(data.from || ""); setImageUrl(signed.signedUrl); setPhase("revealed");
+      setLetter(data.letter || ""); setFrom(data.from || ""); setImageUrl(signed.signedUrl); setPhase("revealed");
     } catch (failure) { setError(failure instanceof Error ? failure.message : "상자를 열지 못했습니다."); setPhase("error"); }
     finally { running.current = false; }
   }
@@ -62,6 +63,7 @@ export default function CostumeGiftReveal({ itemId, name, onClose, onOpened }: {
       {phase === "revealed" ? <>
         {from && <p>{from}에게 받은 선물</p>}
         <img className="costume-revealed-image" src={imageUrl} alt={`${from || "친구"}에게 받은 코스튬 선물`}/>
+        {letter && <section className="costume-letter" aria-label="함께 받은 편지"><h3>함께 온 편지</h3><p>{letter}</p></section>}
         <div className="costume-reveal-actions"><a className="button outline" href={imageUrl} target="_blank" rel="noopener noreferrer">이미지 새 창으로 보기</a><button className="button primary" onClick={onClose}>닫기</button></div>
       </> : <>
         <div className="costume-box-icon"><Gift size={100} strokeWidth={1.5}/></div>
