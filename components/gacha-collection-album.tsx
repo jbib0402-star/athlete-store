@@ -31,7 +31,7 @@ export default function GachaCollectionAlbum({ inventory, prizes, records, onUse
       {entry.collected && <small>누적 획득 {entry.received}개{entry.retired ? " · 지난 물품" : ""}</small>}
     </article>)}</div>
     {!visible.length && <p className="gacha-album-empty">{entries.length ? "조건에 맞는 물건이 없어요." : "첫 잡동사니를 뽑아 앨범을 채워 보세요!"}</p>}
-    <p className="gacha-album-footnote">중복 물건은 한 칸에 모아 표시해요. 현재 보유 중인 물건만 선물·사용할 수 있으며, 보관함 칸을 차지해요.</p>
+    <p className="gacha-album-footnote">중복 물건은 한 칸에 모아 표시해요. 현재 보유 중인 물건만 선물·사용할 수 있어요. 보관 수량은 무제한이에요.</p>
     {selected && <GachaItemDialog readOnly item={{ id: selected.key, product_name: selected.name, product_image_url: selected.image_url, gacha_description: selected.description }} onClose={() => setSelected(null)}/>}
   </section>;
 }

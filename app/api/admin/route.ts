@@ -265,7 +265,7 @@ export async function POST(request: Request) {
     }
 
     if (action === "update_settings") {
-      const allowed = ["site_name", "currency_name", "welcome_points", "attendance_reward", "training_reward", "daily_training_limit", "locker_limit"];
+      const allowed = ["site_name", "currency_name", "welcome_points", "attendance_reward", "training_reward", "daily_training_limit"];
       const rows = allowed.filter(key => key in payload).map(key => ({ key, value: payload[key] }));
       const { error } = await admin.from("app_settings").upsert(rows, { onConflict: "key" });
       if (error) return NextResponse.json({ error: error.message }, { status: 400 });
