@@ -19,7 +19,7 @@
 /* Keep image content inside locker cards, including large pixel sprites. */
 .inventory-art { overflow:hidden; min-width:0; }
 .inventory-art img { display:block; width:100%; height:102px; max-width:100%; max-height:100%; min-width:0; min-height:0; object-fit:contain; }
-.gacha-album { margin-top:28px; padding:28px; border:1px solid #eadbcd; border-radius:20px; background-color:#fff8ed; background-image:radial-gradient(#e9dccc 1px,transparent 1px); background-size:16px 16px; }
+.gacha-album { margin-top:24px; padding:20px; border:1px solid #eadbcd; border-radius:20px; background-color:#fff8ed; background-image:radial-gradient(#e9dccc 1px,transparent 1px); background-size:16px 16px; }
 .gacha-album-heading { display:flex; align-items:flex-start; justify-content:space-between; gap:18px; }
 .gacha-album-heading h2 { display:flex; align-items:center; gap:10px; margin:8px 0; color:#70503b; font-size:1.4rem; }
 .gacha-album-heading p,.gacha-album-footnote { color:#8c7766; font-size:.78rem; line-height:1.7; }
@@ -34,13 +34,13 @@
 .gacha-album-tabs button { border:1px solid #e5d8c7; background:#fffdf8; color:#91735b; border-radius:20px; padding:8px 12px; font-size:.73rem; }
 .gacha-album-tabs button.active { background:#e7eddc; border-color:#bcccaa; color:#586b46; font-weight:800; }
 .gacha-album .search-box { width:200px; max-width:100%; background:#fffdf8; }
-.gacha-sticker-grid { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:16px; }
-.gacha-sticker-card { min-width:0; display:flex; flex-direction:column; padding:10px 10px 14px; border:1px solid #e8ddcf; background:#fffdf8; border-radius:12px; box-shadow:0 3px 0 #e5d8c980; }
+.gacha-sticker-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(min(100%,125px),1fr)); gap:12px; }
+.gacha-sticker-card { min-width:0; display:flex; flex-direction:column; padding:8px 8px 10px; border:1px solid #e8ddcf; background:#fffdf8; border-radius:12px; box-shadow:0 3px 0 #e5d8c980; }
 .gacha-sticker-button { display:grid; gap:8px; padding:0; border:0; color:#725b45; background:transparent; width:100%; text-align:center; min-width:0; }
 .gacha-sticker-button:not(:disabled):hover .gacha-sticker-art { background:#f3eedc; }
 .gacha-sticker-button:focus-visible { outline:3px solid #7b9270; outline-offset:4px; border-radius:8px; }
-.gacha-sticker-art { position:relative; display:flex; align-items:center; justify-content:center; width:100%; height:150px; overflow:hidden; min-width:0; border-radius:8px; background:#f6f2e9; margin-bottom:6px; }
-.gacha-sticker-art img { display:block; width:auto; height:auto; max-width:calc(100% - 32px); max-height:calc(100% - 32px); min-width:0; min-height:0; padding:0; object-fit:contain; image-rendering:auto; }
+.gacha-sticker-art { position:relative; display:flex; align-items:center; justify-content:center; width:100px; max-width:100%; height:auto; aspect-ratio:1 / 1; overflow:hidden; min-width:0; border-radius:8px; background:#f6f2e9; margin:0 auto 6px; }
+.gacha-sticker-art img { display:block; width:auto; height:auto; max-width:calc(100% - 16px); max-height:calc(100% - 16px); min-width:0; min-height:0; padding:0; object-fit:contain; image-rendering:auto; }
 .gacha-sticker-count { position:absolute; right:7px; bottom:7px; background:#dfe9d3; border:2px solid #fffdf8; border-radius:12px; padding:3px 8px; color:#5d7548; font-size:.7rem; }
 .gacha-sticker-button strong { font-size:.8rem; line-height:1.5; overflow-wrap:anywhere; }
 .gacha-sticker-button>span,.gacha-sticker-card>small { font-size:.66rem; color:#9b856e; line-height:1.5; }
@@ -50,6 +50,5 @@
 .gacha-sticker-question { font-family:monospace; font-size:3rem; font-weight:900; color:#d4c7b5; }
 .gacha-album-empty { text-align:center; padding:30px 10px; color:#9b856e; font-size:.85rem; }
 .gacha-album-footnote { margin:20px 0 0; }
-@media(max-width:1100px){.gacha-sticker-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
-@media(max-width:600px){.gacha-album{padding:18px 14px}.gacha-album-heading{flex-wrap:wrap}.gacha-album-heading h2{font-size:1.15rem}.gacha-album-summary{display:flex;align-items:baseline;gap:14px}.gacha-sticker-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.gacha-sticker-art{height:130px}.gacha-album .search-box{width:100%}}
+@media(max-width:600px){.gacha-album{padding:18px 14px}.gacha-album-heading{flex-wrap:wrap}.gacha-album-heading h2{font-size:1.15rem}.gacha-album-summary{display:flex;align-items:baseline;gap:14px}.gacha-sticker-grid{gap:10px}.gacha-sticker-art{width:88px}.gacha-album .search-box{width:100%}}
 @media(prefers-reduced-motion:reduce){.gacha-album-progress>div{transition:none}}
