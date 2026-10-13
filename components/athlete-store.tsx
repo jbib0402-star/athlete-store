@@ -7,6 +7,7 @@ import {
   Plus, Search, Settings, ShieldCheck, ShoppingBag, ShoppingCart, Store, Trash2,
   UserRound, UsersRound, WalletCards, X
 } from "lucide-react";
+import GachaPrizeManager from "@/components/gacha-prize-manager";
 import GachaItemDialog from "@/components/gacha-item-dialog";
 import CostumeGiftReveal from "@/components/costume-gift-reveal";
 import { getSupabaseBrowser, hasSupabaseConfig, usernameToEmail } from "@/lib/supabase";
@@ -164,7 +165,7 @@ function ProfileView({ profile, logs, inventory, attendanceDone, trainingCount, 
 }
 
 function AdminView({ currentRole, profiles, products, settings, currency, onAdmin }: { currentRole: Profile["role"]; profiles: Profile[]; products: Product[]; settings: AppSettings; currency: string; onAdmin: (action: string, payload: Record<string, unknown>, file?: File) => Promise<void> }) {
-  const [tab, setTab] = useState<"members" | "products" | "settings" | "staff">("members");
+  const [tab, setTab] = useState<"members" | "products" | "settings" | "staff" | "gacha">("members");
   const [memberForm, setMemberForm] = useState({ username: "", password: "", character_name: "", sport: "", points: settings.welcome_points });
   const [productForm, setProductForm] = useState({ name: "", description: "", price: 0, category: "식품", stock: "", purchase_limit: "", is_consumable: true, image_url: "" });
   const [productFile, setProductFile] = useState<File | undefined>();
@@ -200,7 +201,8 @@ function AdminView({ currentRole, profiles, products, settings, currency, onAdmi
 
   return <div className="admin-page">
     <section className="admin-banner"><div><div className="eyebrow light">ADMIN CONTROL</div><h1>운영 관리</h1><p>회원, 포인트, 상품과 사이트 운영 규칙을 관리합니다.</p></div><ShieldCheck size={48}/></section>
-    <div className="admin-tabs"><button className={tab === "members" ? "active" : ""} onClick={() => setTab("members")}><UsersRound/>회원 · 포인트</button><button className={tab === "products" ? "active" : ""} onClick={() => setTab("products")}><Store/>상품 관리</button><button className={tab === "settings" ? "active" : ""} onClick={() => setTab("settings")}><Settings/>운영 설정</button>{currentRole === "admin" && <button className={tab === "staff" ? "active" : ""} onClick={() => setTab("staff")}><ShieldCheck/>스태프 권한</button>}</div>
+    <div className="admin-tabs"><button className={tab === "members" ? "active" : ""} onClick={() => setTab("members")}><UsersRound/>회원 · 포인트</button><button className={tab === "products" ? "active" : ""} onClick={() => setTab("products")}><Store/>상품 관리</button><button className={tab === "gacha" ? "active" : ""} onClick={() => setTab("gacha")}><PackageCheck/>가챠 물품</button><button className={tab === "settings" ? "active" : ""} onClick={() => setTab("settings")}><Settings/>운영 설정</button>{currentRole === "admin" && <button className={tab === "staff" ? "active" : ""} onClick={() => setTab("staff")}><ShieldCheck/>스태프 권한</button>}</div>
+    {tab === "gacha" && <GachaPrizeManager/>}
     {tab === "staff" && currentRole === "admin" && <section className="panel staff-permissions">
       <div className="panel-heading"><div><div className="eyebrow">STAFF ACCESS</div><h2>스태프 권한</h2></div><span className="count-pill">스태프 {profiles.filter(member => member.role === "staff").length}명</span></div>
       <p className="muted">스태프는 회원·포인트, 상품, 복권, 운영 설정을 관리할 수 있습니다. 스태프 지정과 해제는 관리자만 가능합니다.</p>

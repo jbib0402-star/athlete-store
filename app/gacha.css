@@ -3,3 +3,10 @@
 @media(max-width:500px){.gacha-modal{padding:24px 16px}.gacha-modal h2{font-size:1.25rem}.gacha-actions .button{width:100%}.gacha-prize-list article{gap:8px;flex-wrap:wrap}.gacha-result-image{width:160px;height:160px}}
 @media(prefers-reduced-motion:reduce){.gacha-drawing .gacha-capsule{animation:none}}
 .product-visual img[src^="/gacha/"]{object-fit:contain;image-rendering:pixelated}
+
+.gacha-admin-list .panel-heading { flex-wrap:wrap; gap:12px; }
+.gacha-admin-list .panel-heading p { margin:8px 0 0; font-size:.8rem; line-height:1.6; }
+.gacha-admin-list .gacha-actions { margin:0; }
+.gacha-admin-list .gacha-prize-list small { color:#88715b; font-size:.72rem; }
+.gacha-edit-preview { display:block; width:100px; height:100px; object-fit:contain; image-rendering:pixelated; margin:12px auto; }
+.gacha-admin-notice { padding:12px; background:#e8f5ec; color:#26744a; font-size:.8rem; border-radius:8px; }
