@@ -56,7 +56,7 @@ export async function GET(request) {
     if (error) return NextResponse.json({ error: error.message }, { status: 400 });
 
     const userIds = [...new Set((rows || []).map(row => String(row.user_id)))];
-    const productIds = [...new Set((rows || []).map(row => String(row.product_id)))];
+    const productIds = [...new Set((rows || []).filter(row => row.product_id).map(row => String(row.product_id)))];
     const users = new Map();
     const products = new Map();
 

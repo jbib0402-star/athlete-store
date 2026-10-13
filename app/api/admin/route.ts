@@ -252,10 +252,16 @@ export async function POST(request: Request) {
       return NextResponse.json({ message: "판매 상태를 변경했습니다." });
     }
 
-    if (action === "delete_product") {
-      const { error } = await admin.from("products").delete().eq("id", String(payload.id));
+    if (action === "delete_product" || action === "delete_gacha_prize") {
+      const id = String(payload.id || "");
+      if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) {
+        return NextResponse.json({ error: "삭제할 상품을 확인해주세요." }, { status: 400 });
+      }
+      const table = action === "delete_product" ? "products" : "gacha_prizes";
+      const { data, error } = await admin.from(table).delete().eq("id", id).select("id,name").maybeSingle();
       if (error) return NextResponse.json({ error: error.message }, { status: 400 });
-      return NextResponse.json({ message: "상품을 삭제했습니다." });
+      if (!data) return NextResponse.json({ error: "이미 삭제되었거나 존재하지 않는 상품입니다." }, { status: 404 });
+      return NextResponse.json({ message: `‘${data.name}’ 상품을 삭제했습니다.` });
     }
 
     if (action === "update_settings") {
