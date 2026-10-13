@@ -115,7 +115,7 @@ export default function GachaPrizeManager() {
   );
 
   return <section className="panel gacha-admin-list">
-    <div className="panel-heading"><div><div className="eyebrow">GACHA ITEMS</div><h2>잡동사니 뽑기 관리</h2><p className="muted">총 {items.length}종 · 등장 중 {enabled.length}종 · 기본 뽑기 제한은 계정당 하루 5회입니다.</p></div>
+    <div className="panel-heading"><div><div className="eyebrow">GACHA ITEMS</div><h2>잡동사니 뽑기 관리</h2><p className="muted">총 {items.length}종 · 등장 중 {enabled.length}종 · 뽑기 횟수 제한이 없습니다.</p></div>
       <div className="gacha-actions"><button type="button" className="button outline" disabled={loading || saving} onClick={() => void reload()}>새로고침</button><button type="button" className="button primary" disabled={saving} onClick={() => openEdit(blank)}>물품 추가</button></div>
     </div>
     <div className="member-list-controls"><label>물품 검색<input type="search" value={query} onChange={event => setQuery(event.target.value)} placeholder="물품 이름 또는 설명"/></label><label>등장 상태<select value={filter} onChange={event => setFilter(event.target.value)}><option value="all">전체</option><option value="active">등장 중</option><option value="inactive">등장 중지</option></select></label></div>
