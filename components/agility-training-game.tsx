@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, RotateCcw, Trophy, X, Zap } from "lucide-react";
 import { getSupabaseBrowser } from "@/lib/supabase";
 
@@ -43,8 +43,8 @@ export default function AgilityTrainingGame() {
   const [gameKind, setGameKind] = useState<GameKind>("direction");
   const [challenges, setChallenges] = useState<number[]>([]);
   const [starting, setStarting] = useState(false);
-  const [timingPosition, setTimingPosition] = useState(0);
-  const roundStarted = useRef(0);
+  const timingCursor = useRef<HTMLSpanElement | null>(null);
+  const displayedTimingMs = useRef(0);
   const startingRef = useRef(false);
   const [sequence, setSequence] = useState<Direction[]>([]);
   const [sessionId, setSessionId] = useState("");
@@ -208,7 +208,6 @@ export default function AgilityTrainingGame() {
 
     const expected = sequence[index];
     const position = typeof direction === "number" ? 100 - Math.abs(100 - (direction % 1800) / 9) : -1000;
-    if (gameKind === "timing" && typeof direction === "number") setTimingPosition(position);
     const correct = gameKind === "direction" ? direction === expected
       : gameKind === "target" ? direction === challenges[index]
       : typeof direction === "number" && Math.abs(position - challenges[index]) <= 12;
@@ -230,25 +229,35 @@ export default function AgilityTrainingGame() {
   }, [phase, index, sequence, answers, finishTraining, gameKind, challenges]);
 
   useEffect(() => {
-    if (phase !== "playing" || !sequence[index]) return;
+    if (phase !== "playing" || feedback || !sequence[index]) return;
     const timer = window.setTimeout(() => submitDirection(gameKind === "direction" ? "miss" : null), roundTimeMs);
     return () => window.clearTimeout(timer);
-  }, [phase, index, sequence, roundTimeMs, submitDirection, gameKind]);
+  }, [phase, index, sequence, roundTimeMs, submitDirection, gameKind, feedback]);
 
-  useEffect(() => {
-    if (phase !== "playing") return;
-    if (feedback) return;
-    roundStarted.current = performance.now();
-    if (gameKind !== "timing") return;
+  const stopTiming = useCallback(() => {
+    // Judge the exact frame shown to the player, not a later click/release time.
+    submitDirection(displayedTimingMs.current);
+  }, [submitDirection]);
+
+  useLayoutEffect(() => {
+    if (phase !== "playing" || feedback || gameKind !== "timing") return;
+    const cursor = timingCursor.current;
+    if (!cursor) return;
+    const startedAt = performance.now();
+    displayedTimingMs.current = 0;
+    cursor.style.left = "0%";
     let frame: number;
-    const animate = () => {
-      const elapsed = performance.now() - roundStarted.current;
-      setTimingPosition(100 - Math.abs(100 - (elapsed % 1800) / 9));
+    const animate = (timestamp: number) => {
+      if (inputLockRef.current) return;
+      const elapsed = Math.min(roundTimeMs, Math.max(0, Math.floor(timestamp - startedAt)));
+      displayedTimingMs.current = elapsed;
+      // Only move the cursor; avoid rendering the entire game every frame.
+      cursor.style.left = `${100 - Math.abs(100 - (elapsed % 1800) / 9)}%`;
       frame = window.requestAnimationFrame(animate);
     };
     frame = window.requestAnimationFrame(animate);
     return () => window.cancelAnimationFrame(frame);
-  }, [phase, index, gameKind, feedback]);
+  }, [phase, index, gameKind, feedback, roundTimeMs]);
 
   useEffect(() => {
     if (phase !== "playing") return;
@@ -256,7 +265,7 @@ export default function AgilityTrainingGame() {
       if (event.repeat) return;
       if (gameKind === "timing" && (event.key === " " || event.key === "Enter")) {
         event.preventDefault();
-        submitDirection(Math.min(3000, Math.floor(performance.now() - roundStarted.current)));
+        stopTiming();
         return;
       }
       if (gameKind !== "direction") return;
@@ -272,7 +281,7 @@ export default function AgilityTrainingGame() {
     };
     window.addEventListener("keydown", onKeyDown, { passive: false });
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [phase, submitDirection, gameKind]);
+  }, [phase, submitDirection, gameKind, stopTiming]);
 
   useEffect(() => {
     if (phase === "closed") return;
@@ -347,10 +356,10 @@ export default function AgilityTrainingGame() {
           <p>초록 구간에서 멈추세요!</p>
           <div className="timing-lane" aria-label="움직이는 타이밍 막대">
             <span className="timing-zone" style={{ left: `${challenges[index] - 12}%`, width: "24%" }} />
-            <span className="timing-cursor" style={{ left: `${timingPosition}%` }} />
+            <span ref={timingCursor} className="timing-cursor" style={{ left: "0%" }} />
           </div>
           <strong aria-live="polite">{feedback === "correct" ? "GOOD!" : feedback ? "MISS!" : "집중!"}</strong>
-          <button type="button" className="button primary wide timing-stop" disabled={!!feedback} onClick={() => submitDirection(Math.min(3000, Math.floor(performance.now() - roundStarted.current)))}>정지!</button>
+          <button type="button" className="button primary wide timing-stop" disabled={!!feedback} onPointerDown={event => { if (event.button !== 0 || !event.isPrimary) return; event.preventDefault(); stopTiming(); }} onClick={event => { if (event.detail === 0) stopTiming(); }}>정지!</button>
         </div> : <div className="target-game">
           <p>초록 표적을 터치하세요!</p>
           <div className="target-grid">{Array.from({ length: 9 }, (_, cell) => <button type="button" key={cell} className={cell === challenges[index] ? "target-cell active" : "target-cell"} aria-label={cell === challenges[index] ? "표적" : `빈 칸 ${cell + 1}`} disabled={!!feedback} onClick={() => submitDirection(cell)}>{cell === challenges[index] ? "◎" : "·"}</button>)}</div>
