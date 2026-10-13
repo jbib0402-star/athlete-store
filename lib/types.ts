@@ -37,6 +37,7 @@ export interface CartItem {
 }
 
 export interface InventoryItem {
+  gacha_collection_key?: string | null;
   gacha_prize_id?: string | null;
   gacha_description?: string | null;
   gift_image_path?: string | null;
