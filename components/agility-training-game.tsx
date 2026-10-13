@@ -208,6 +208,7 @@ export default function AgilityTrainingGame() {
 
     const expected = sequence[index];
     const position = typeof direction === "number" ? 100 - Math.abs(100 - (direction % 1800) / 9) : -1000;
+    if (gameKind === "timing" && typeof direction === "number") setTimingPosition(position);
     const correct = gameKind === "direction" ? direction === expected
       : gameKind === "target" ? direction === challenges[index]
       : typeof direction === "number" && Math.abs(position - challenges[index]) <= 12;
@@ -236,6 +237,7 @@ export default function AgilityTrainingGame() {
 
   useEffect(() => {
     if (phase !== "playing") return;
+    if (feedback) return;
     roundStarted.current = performance.now();
     if (gameKind !== "timing") return;
     let frame: number;
@@ -246,7 +248,7 @@ export default function AgilityTrainingGame() {
     };
     frame = window.requestAnimationFrame(animate);
     return () => window.cancelAnimationFrame(frame);
-  }, [phase, index, gameKind]);
+  }, [phase, index, gameKind, feedback]);
 
   useEffect(() => {
     if (phase !== "playing") return;
