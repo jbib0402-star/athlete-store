@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import GachaShop from "@/components/gacha-shop";
 import StoreActionEnhancer from "@/components/store-action-enhancer";
 import AuthEntryEnhancer from "@/components/auth-entry-enhancer";
 import TimedItemEnhancer from "@/components/timed-item-enhancer";
@@ -17,6 +18,7 @@ import AgilityTrainingGame from "@/components/agility-training-game";
 import LockerRefreshEnhancer from "@/components/locker-refresh-enhancer";
 import ProfileNicknameEditor from "@/components/profile-nickname-editor";
 import "./globals.css";
+import "./gacha.css";
 import "./costume-gifts.css";
 import "./store-actions.css";
 import "./auth-entry.css";
@@ -40,7 +42,7 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="ko">
-      <body>{children}<StoreActionEnhancer/><AuthEntryEnhancer/><TimedItemEnhancer/><TimedRuleCorrectionEnhancer/><CategoryEnhancer/><TransferRecipientEnhancer/><AdminMaintenanceEnhancer/><AdminEffectManager/><ProfileHistoryEnhancer/><LotteryEnhancer/><LotteryRuntimeFix/><LotteryConfigBridge/><GiftArrivalNotifier/><AdminMemberPageRestore/><AgilityTrainingGame/><LockerRefreshEnhancer/><ProfileNicknameEditor/></body>
+      <body>{children}<StoreActionEnhancer/><GachaShop/><AuthEntryEnhancer/><TimedItemEnhancer/><TimedRuleCorrectionEnhancer/><CategoryEnhancer/><TransferRecipientEnhancer/><AdminMaintenanceEnhancer/><AdminEffectManager/><ProfileHistoryEnhancer/><LotteryEnhancer/><LotteryRuntimeFix/><LotteryConfigBridge/><GiftArrivalNotifier/><AdminMemberPageRestore/><AgilityTrainingGame/><LockerRefreshEnhancer/><ProfileNicknameEditor/></body>
     </html>
   );
 }
