@@ -53,6 +53,20 @@ export default function GachaPrizeManager() {
     finally { lock.current = false; setSaving(false); }
   }
 
+  async function remove(item: Prize) {
+    if (lock.current || !window.confirm(`‘${item.name}’ 물품을 뽑기 목록에서 삭제할까요?\n이미 뽑힌 아이템과 설명, 하루 뽑기 횟수 기록은 유지됩니다. 삭제는 되돌릴 수 없습니다.`)) return;
+    lock.current = true; setSaving(true); setError(""); setNotice("");
+    try {
+      await request("delete_gacha_prize", { id: item.id });
+      setItems(current => current.filter(prize => prize.id !== item.id));
+      setNotice(`‘${item.name}’ 물품을 삭제했습니다.`);
+      window.dispatchEvent(new CustomEvent("gacha-prizes-changed"));
+      const data = await request("list_gacha_prizes");
+      setItems(data.items || []);
+    } catch (failure) { setError(failure instanceof Error ? failure.message : "삭제하지 못했습니다."); }
+    finally { lock.current = false; setSaving(false); }
+  }
+
   const enabled = items.filter(item => item.is_active);
   const totalWeight = enabled.reduce((sum, item) => sum + item.weight, 0);
   const search = query.trim().toLowerCase();
@@ -62,14 +76,14 @@ export default function GachaPrizeManager() {
   );
 
   return <section className="panel gacha-admin-list">
-    <div className="panel-heading"><div><div className="eyebrow">GACHA ITEMS</div><h2>등록된 가챠 물품</h2><p className="muted">총 {items.length}종 · 등장 중 {enabled.length}종 · 기본 뽑기 제한은 계정당 하루 5회입니다.</p></div>
-      <div className="gacha-actions"><button type="button" className="button outline" disabled={loading} onClick={() => void reload()}>새로고침</button><button type="button" className="button primary" onClick={() => { setError(""); setEdit({ ...blank }); }}>물품 추가</button></div>
+    <div className="panel-heading"><div><div className="eyebrow">GACHA ITEMS</div><h2>잡동사니 뽑기 관리</h2><p className="muted">총 {items.length}종 · 등장 중 {enabled.length}종 · 기본 뽑기 제한은 계정당 하루 5회입니다.</p></div>
+      <div className="gacha-actions"><button type="button" className="button outline" disabled={loading || saving} onClick={() => void reload()}>새로고침</button><button type="button" className="button primary" disabled={saving} onClick={() => { setError(""); setEdit({ ...blank }); }}>물품 추가</button></div>
     </div>
     <div className="member-list-controls"><label>물품 검색<input type="search" value={query} onChange={event => setQuery(event.target.value)} placeholder="물품 이름 또는 설명"/></label><label>등장 상태<select value={filter} onChange={event => setFilter(event.target.value)}><option value="all">전체</option><option value="active">등장 중</option><option value="inactive">등장 중지</option></select></label></div>
     {!edit && error && <p className="form-error" role="alert">{error}</p>}
     {notice && <p className="gacha-admin-notice" role="status">{notice}</p>}
     {loading ? <p role="status">가챠 물품을 불러오고 있어요…</p> : <div className="gacha-prize-list">
-      {visible.map(item => <article key={item.id}><img src={item.image_url} alt={item.name} loading="lazy"/><div><strong>{item.name}</strong><p>{item.description}</p><small>{item.is_active ? `등장 중 · 확률 ${(item.weight / totalWeight * 100).toFixed(2)}% · 비중 ${item.weight}` : "등장 중지 · 뽑기에서 나오지 않아요"}</small></div><button type="button" className="button outline small" onClick={() => { setError(""); setEdit({ ...item }); }}>수정</button></article>)}
+      {visible.map(item => <article key={item.id}><img src={item.image_url} alt={item.name} loading="lazy"/><div><strong>{item.name}</strong><p>{item.description}</p><small>{item.is_active ? `등장 중 · 확률 ${(item.weight / totalWeight * 100).toFixed(2)}% · 비중 ${item.weight}` : "등장 중지 · 뽑기에서 나오지 않아요"}</small></div><div className="gacha-row-actions"><button type="button" className="button outline small" disabled={saving} onClick={() => { setError(""); setEdit({ ...item }); }}>수정</button><button type="button" className="button small danger-soft" aria-label={`${item.name} 삭제`} disabled={saving} onClick={() => void remove(item)}>삭제</button></div></article>)}
       {!visible.length && <p className="muted">표시할 가챠 물품이 없습니다.</p>}
     </div>}
     {edit && <div className="gacha-backdrop"><section className="gacha-modal gacha-manager" role="dialog" aria-modal="true" aria-labelledby="gacha-edit-title"><button type="button" className="gacha-close" disabled={saving} onClick={() => setEdit(null)} aria-label="닫기">×</button><h2 id="gacha-edit-title">{edit.id ? "가챠 물품 수정" : "가챠 물품 추가"}</h2>

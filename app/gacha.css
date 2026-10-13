@@ -10,3 +10,8 @@
 .gacha-admin-list .gacha-prize-list small { color:#88715b; font-size:.72rem; }
 .gacha-edit-preview { display:block; width:100px; height:100px; object-fit:contain; image-rendering:pixelated; margin:12px auto; }
 .gacha-admin-notice { padding:12px; background:#e8f5ec; color:#26744a; font-size:.8rem; border-radius:8px; }
+
+.gacha-admin-list { margin-top:24px; }
+.gacha-prize-list article > .gacha-row-actions { flex:0 0 auto; display:flex; gap:8px; }
+.button.danger-soft { color:#b83232; background:#fff0f0; border:1px solid #f3cccc; }
+@media(max-width:500px){.gacha-prize-list article > .gacha-row-actions{margin-left:auto}.product-admin-row .button.danger-soft{min-height:40px}}

@@ -120,7 +120,9 @@ export default function AdminMaintenanceEnhancer() {
     loadAdminData();
     if (!supabase) return;
     const { data } = supabase.auth.onAuthStateChange(() => loadAdminData());
-    return () => data.subscription.unsubscribe();
+    const refresh = () => { void loadAdminData(); };
+    window.addEventListener("athlete-data-changed", refresh);
+    return () => { data.subscription.unsubscribe(); window.removeEventListener("athlete-data-changed", refresh); };
   }, [supabase, loadAdminData]);
 
   const openProductEdit = useCallback((product: AdminProduct) => {
@@ -147,8 +149,8 @@ export default function AdminMaintenanceEnhancer() {
 
     const scan = () => {
       const productRows = Array.from(document.querySelectorAll<HTMLElement>(".product-admin-row"));
-      productRows.forEach((row, index) => {
-        const product = products[index];
+      productRows.forEach(row => {
+        const product = products.find(item => item.id === row.dataset.productId);
         if (!product) return;
         row.dataset.productAdminId = product.id;
         let button = row.querySelector<HTMLButtonElement>(".admin-product-edit-trigger");

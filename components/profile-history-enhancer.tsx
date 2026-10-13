@@ -175,7 +175,7 @@ export default function ProfileHistoryEnhancer() {
               <div className="item-use-history-icon"><PackageCheck size={18}/></div>
               <div>
                 <strong>{item.product_name}</strong>
-                {item.gacha_prize_id && <button type="button" className="button outline small" onClick={()=>setGachaHistoryItem(item)}>뽑기 물건 다시 보기</button>}
+                {(item.gacha_prize_id || item.gacha_description != null) && <button type="button" className="button outline small" onClick={()=>setGachaHistoryItem(item)}>뽑기 물건 다시 보기</button>}
                 {item.gift_image_path && <button type="button" className="button outline small" onClick={() => setGiftHistoryItem(item)}>선물 이미지 다시 보기</button>}
                 {item.effect_text && <p>{item.effect_text}{item.effect_duration_hours ? ` · ${item.effect_duration_hours}시간 지속` : ""}</p>}
                 <span>{formatDateTime(item.used_at)} 사용</span>
