@@ -1,14 +1,14 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Gift, X } from "lucide-react";
 import { getSupabaseBrowser } from "@/lib/supabase";
 
-export default function CostumeGiftReveal({ itemId, name, onClose, onOpened }: {
-  itemId: string; name: string; onClose: () => void; onOpened?: () => void;
+export default function CostumeGiftReveal({ itemId, name, onClose, onOpened, replay = false }: {
+  itemId: string; name: string; onClose: () => void; onOpened?: () => void; replay?: boolean;
 }) {
   const supabase = useMemo(() => getSupabaseBrowser(), []);
-  const [phase, setPhase] = useState<"ready" | "opening" | "revealed" | "error">("ready");
+  const [phase, setPhase] = useState<"ready" | "opening" | "loading" | "revealed" | "error">(replay ? "loading" : "ready");
   const [imageUrl, setImageUrl] = useState("");
   const [letter, setLetter] = useState("");
   const [from, setFrom] = useState("");
@@ -34,10 +34,10 @@ export default function CostumeGiftReveal({ itemId, name, onClose, onOpened }: {
     return () => { document.removeEventListener("keydown", onKey); if (previous?.isConnected) previous.focus(); };
   }, []);
 
-  async function open() {
+  const open = useCallback(async () => {
     if (running.current || !supabase) return;
-    running.current = true; setPhase("opening"); setError("");
-    const delay = new Promise(resolve => setTimeout(resolve, window.matchMedia("(prefers-reduced-motion: reduce)").matches ? 100 : 2200));
+    running.current = true; setPhase(replay ? "loading" : "opening"); setError("");
+    const delay = replay ? Promise.resolve() : new Promise(resolve => setTimeout(resolve, window.matchMedia("(prefers-reduced-motion: reduce)").matches ? 100 : 2200));
     try {
       const { data, error: rpcError } = await supabase.rpc("open_costume_gift", { inventory_item_id: itemId });
       if (rpcError) throw new Error(rpcError.message);
@@ -54,11 +54,13 @@ export default function CostumeGiftReveal({ itemId, name, onClose, onOpened }: {
       setLetter(data.letter || ""); setFrom(data.from || ""); setImageUrl(signed.signedUrl); setPhase("revealed");
     } catch (failure) { setError(failure instanceof Error ? failure.message : "상자를 열지 못했습니다."); setPhase("error"); }
     finally { running.current = false; }
-  }
+  }, [supabase, itemId, onOpened, replay]);
+
+  useEffect(() => { if (replay) void open(); }, [replay, open]);
 
   return <div className="costume-reveal-backdrop" onMouseDown={() => !running.current && onClose()}>
-    <section className={`costume-reveal ${phase}`} ref={dialog} tabIndex={-1} role="dialog" aria-modal="true" aria-labelledby="costume-reveal-title" onMouseDown={event => event.stopPropagation()}>
-      <button type="button" className="icon-button costume-close" aria-label="닫기" disabled={phase === "opening"} onClick={onClose}><X/></button>
+    <section className={`costume-reveal ${phase}${replay ? " replay" : ""}`} ref={dialog} tabIndex={-1} role="dialog" aria-modal="true" aria-labelledby="costume-reveal-title" onMouseDown={event => event.stopPropagation()}>
+      <button type="button" className="icon-button costume-close" aria-label="닫기" disabled={phase === "opening" || phase === "loading"} onClick={onClose}><X/></button>
       <h2 id="costume-reveal-title">{phase === "revealed" ? "짜잔! 선물이 도착했어요" : name}</h2>
       {phase === "revealed" ? <>
         {from && <p>{from}에게 받은 선물</p>}
@@ -66,10 +68,10 @@ export default function CostumeGiftReveal({ itemId, name, onClose, onOpened }: {
         {letter && <section className="costume-letter" aria-label="함께 받은 편지"><h3>함께 온 편지</h3><p>{letter}</p></section>}
         <div className="costume-reveal-actions"><a className="button outline" href={imageUrl} target="_blank" rel="noopener noreferrer">이미지 새 창으로 보기</a><button className="button primary" onClick={onClose}>닫기</button></div>
       </> : <>
-        <div className="costume-box-icon"><Gift size={100} strokeWidth={1.5}/></div>
-        <p aria-live="polite">{phase === "opening" ? "두구두구… 어떤 선물일까요?" : "상자를 열어 선물 이미지를 확인해보세요."}</p>
+        {!replay && <div className="costume-box-icon"><Gift size={100} strokeWidth={1.5}/></div>}
+        <p aria-live="polite">{replay ? "선물 이미지와 편지를 불러오고 있어요." : phase === "opening" ? "두구두구… 어떤 선물일까요?" : "상자를 열어 선물 이미지를 확인해보세요."}</p>
         {phase === "error" && <p role="alert" className="costume-error">{error}</p>}
-        <button className="button primary" disabled={phase === "opening" || !supabase} onClick={open}>{phase === "opening" ? "개봉 중…" : phase === "error" ? "다시 시도" : "선물상자 열기"}</button>
+        {(!replay || phase === "error") && <button className="button primary" disabled={phase === "opening" || phase === "loading" || !supabase} onClick={open}>{phase === "opening" ? "개봉 중…" : phase === "error" ? "다시 시도" : "선물상자 열기"}</button>}
       </>}
     </section>
   </div>;

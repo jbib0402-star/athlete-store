@@ -25,3 +25,5 @@
 .costume-letter { margin-top:20px; padding:18px; text-align:left; background:#fff9eb; border:1px solid #eadfc4; }
 .costume-letter h3 { margin:0 0 10px; font-size:.9rem; color:#775900; }
 .costume-letter p { margin:0; white-space:pre-wrap; overflow-wrap:anywhere; color:#394d60; line-height:1.8; font-size:.9rem; }
+
+.costume-reveal.replay .costume-revealed-image { animation:none; }
