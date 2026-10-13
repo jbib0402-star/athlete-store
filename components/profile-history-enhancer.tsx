@@ -131,7 +131,7 @@ export default function ProfileHistoryEnhancer() {
 
   return createPortal(
     <div className="profile-history-grid">
-      {giftHistoryItem && <CostumeGiftReveal itemId={giftHistoryItem.id} name={giftHistoryItem.product_name} onClose={() => setGiftHistoryItem(null)}/>}
+      {giftHistoryItem && <CostumeGiftReveal replay key={giftHistoryItem.id} itemId={giftHistoryItem.id} name={giftHistoryItem.product_name} onClose={() => setGiftHistoryItem(null)}/>}
       <section className="panel profile-history-panel">
         <div className="panel-heading profile-history-heading">
           <div>
