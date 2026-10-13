@@ -7,6 +7,8 @@ import {
   Plus, Search, Settings, ShieldCheck, ShoppingBag, ShoppingCart, Store, Trash2,
   UserRound, UsersRound, WalletCards, X
 } from "lucide-react";
+import GachaCollectionAlbum from "@/components/gacha-collection-album";
+import { isGachaItem, type GachaPrize, type GachaCollectionRecord } from "@/lib/gacha-collection";
 import GachaPrizeManager from "@/components/gacha-prize-manager";
 import GachaItemDialog from "@/components/gacha-item-dialog";
 import CostumeGiftReveal from "@/components/costume-gift-reveal";
@@ -131,18 +133,19 @@ function ShopView({ products, profile, settings, onAdd }: { products: Product[];
   </>;
 }
 
-function LockerView({ cart, inventory, products, profile, settings, onQuantity, onCheckout, onUse }: { cart: CartItem[]; inventory: InventoryItem[]; products: Product[]; profile: Profile; settings: AppSettings; onQuantity: (id: string, qty: number) => void; onCheckout: () => void; onUse: (item: InventoryItem) => void }) {
+function LockerView({ cart, inventory, products, prizes, collection, profile, settings, onQuantity, onCheckout, onUse }: { cart: CartItem[]; inventory: InventoryItem[]; products: Product[]; prizes: GachaPrize[]; collection: GachaCollectionRecord[]; profile: Profile; settings: AppSettings; onQuantity: (id: string, qty: number) => void; onCheckout: () => void; onUse: (item: InventoryItem) => void }) {
   const total = cart.reduce((sum, item) => sum + item.product.price * item.quantity, 0);
   const activeInventory = inventory.filter(i => !i.used_at);
-  return <div className="two-column-page">
+  const regularInventory = activeInventory.filter(item => !isGachaItem(item));
+  return <><div className="two-column-page">
     <section className="panel cart-panel"><div className="panel-heading"><div><div className="eyebrow">CART</div><h2>장바구니</h2></div><span className="count-pill">{cart.reduce((a, b) => a + b.quantity, 0)}개</span></div>
       {cart.length ? <><div className="cart-list">{cart.map(item => <div className="cart-row" key={item.id}><div className="mini-thumb">{item.product.image_url ? <img src={item.product.image_url} alt=""/> : <ShoppingBag size={21}/>}</div><div className="cart-info"><strong>{item.product.name}</strong><span>{formatPoints(item.product.price)} {settings.currency_name}</span></div><div className="quantity"><button onClick={() => onQuantity(item.id, item.quantity - 1)}><Minus size={14}/></button><b>{item.quantity}</b><button onClick={() => onQuantity(item.id, item.quantity + 1)}><Plus size={14}/></button></div></div>)}</div>
         <div className="checkout-box"><div><span>보유 포인트</span><b>{formatPoints(profile.points)} {settings.currency_name}</b></div><div><span>결제 금액</span><b>- {formatPoints(total)} {settings.currency_name}</b></div><div className="after"><span>결제 후 잔액</span><strong>{formatPoints(profile.points - total)} {settings.currency_name}</strong></div><button className="button primary wide" disabled={profile.points < total} onClick={onCheckout}>전부 구매하기 <ShoppingCart size={18}/></button>{profile.points < total && <p className="form-error center">포인트가 부족합니다.</p>}</div></> : <div className="empty-state compact"><ShoppingCart size={32}/><h3>장바구니가 비어 있습니다.</h3><p>매점에서 필요한 상품을 담아보세요.</p></div>}
     </section>
-    <section className="panel"><div className="panel-heading"><div><div className="eyebrow">LOCKER</div><h2>내 보관함</h2></div><span className="count-pill">{activeInventory.length} / {profile.locker_limit || settings.locker_limit}</span></div>
-      {activeInventory.length ? <div className="inventory-grid">{activeInventory.map(item => { const isLottery = products.some(product => product.id === item.product_id && product.special_type === "lottery"); return <article className="inventory-card" key={item.id}><div className="inventory-art">{item.product_image_url ? <img src={item.product_image_url} alt=""/> : <PackageCheck size={36}/>}</div><strong>{item.product_name}</strong><span>{formatDate(item.purchased_at)} 구매</span><button className="button outline small" onClick={() => onUse(item)}>{(item.gacha_prize_id || item.gacha_description != null) ? "물건 보기 · 선물" : item.gift_image_path ? "선물상자 열기" : isLottery ? "복권 긁기" : "사용하기"}</button></article>; })}</div> : <div className="empty-state compact"><PackageCheck size={32}/><h3>보관 중인 아이템이 없습니다.</h3><p>구매한 상품은 이곳에 들어옵니다.</p></div>}
+    <section className="panel"><div className="panel-heading"><div><div className="eyebrow">LOCKER</div><h2>내 보관함</h2><p className="muted">일반 아이템 {regularInventory.length}개 · 가챠 물건은 아래 수집 앨범에 모여요.</p></div><span className="count-pill">전체 {activeInventory.length} / {profile.locker_limit || settings.locker_limit}</span></div>
+      {regularInventory.length ? <div className="inventory-grid">{regularInventory.map(item => { const isLottery = products.some(product => product.id === item.product_id && product.special_type === "lottery"); return <article className="inventory-card" key={item.id} data-inventory-id={item.id}><div className="inventory-art">{item.product_image_url ? <img src={item.product_image_url} alt=""/> : <PackageCheck size={36}/>}</div><strong>{item.product_name}</strong><span>{formatDate(item.purchased_at)} 구매</span><button className="button outline small" onClick={() => onUse(item)}>{(item.gacha_prize_id || item.gacha_description != null) ? "물건 보기 · 선물" : item.gift_image_path ? "선물상자 열기" : isLottery ? "복권 긁기" : "사용하기"}</button></article>; })}</div> : <div className="empty-state compact"><PackageCheck size={32}/><h3>보관 중인 일반 아이템이 없습니다.</h3><p>구매한 상품은 이곳에 들어옵니다.</p></div>}
     </section>
-  </div>;
+  </div><GachaCollectionAlbum inventory={inventory} prizes={prizes} records={collection} onUse={onUse}/></>;
 }
 
 function ActivityView({ attendanceDone, trainingCount, settings, onAttend, onTrain }: { attendanceDone: boolean; trainingCount: number; settings: AppSettings; onAttend: () => void; onTrain: () => void }) {
@@ -260,6 +263,8 @@ export default function AthleteStore() {
   const [products, setProducts] = useState<Product[]>([]);
   const [cart, setCart] = useState<CartItem[]>([]);
   const [inventory, setInventory] = useState<InventoryItem[]>([]);
+  const [gachaPrizes, setGachaPrizes] = useState<GachaPrize[]>([]);
+  const [gachaCollection, setGachaCollection] = useState<GachaCollectionRecord[]>([]);
   const [logs, setLogs] = useState<PointLog[]>([]);
   const [members, setMembers] = useState<Profile[]>([]);
   const [settings, setSettings] = useState<AppSettings>(DEFAULT_SETTINGS);
@@ -289,7 +294,7 @@ export default function AthleteStore() {
     const id = userId || (await supabase.auth.getUser()).data.user?.id;
     if (!id) return;
     const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Seoul" }).format(new Date());
-    const [profileRes, productsRes, cartRes, inventoryRes, logsRes, membersRes, settingsRes, attendanceRes, trainingRes] = await Promise.all([
+    const [profileRes, productsRes, cartRes, inventoryRes, logsRes, membersRes, settingsRes, attendanceRes, trainingRes, gachaPrizesRes, gachaCollectionRes] = await Promise.all([
       supabase.from("profiles").select("*").eq("id", id).single(),
       supabase.from("products").select("*").order("created_at", { ascending: false }),
       supabase.from("cart_items").select("id,quantity,product:products(*)").eq("user_id", id),
@@ -298,12 +303,16 @@ export default function AthleteStore() {
       supabase.from("profiles").select("*").order("character_name"),
       supabase.from("app_settings").select("key,value"),
       supabase.from("attendance").select("id").eq("user_id", id).eq("attendance_date", today).maybeSingle(),
-      supabase.from("training_logs").select("id", { count: "exact", head: true }).eq("user_id", id).eq("training_date", today)
+      supabase.from("training_logs").select("id", { count: "exact", head: true }).eq("user_id", id).eq("training_date", today),
+      supabase.from("gacha_prizes").select("id,name,description,image_url,is_active").eq("is_active", true).order("created_at"),
+      supabase.from("gacha_collection").select("prize_key,name,image_url,description,received_count,first_received_at,last_received_at").eq("user_id", id).order("first_received_at")
     ]);
     if (profileRes.data) setProfile(profileRes.data as Profile);
     if (productsRes.data) setProducts(productsRes.data as Product[]);
     if (cartRes.data) setCart(cartRes.data.map((row: any) => ({ id: row.id, quantity: row.quantity, product: Array.isArray(row.product) ? row.product[0] : row.product })) as CartItem[]);
     if (inventoryRes.data) setInventory(inventoryRes.data as InventoryItem[]);
+    if (gachaPrizesRes.data) setGachaPrizes(gachaPrizesRes.data as GachaPrize[]);
+    if (gachaCollectionRes.data) setGachaCollection(gachaCollectionRes.data as GachaCollectionRecord[]);
     if (logsRes.data) setLogs(logsRes.data as PointLog[]);
     if (membersRes.data) setMembers(membersRes.data as Profile[]);
     if (settingsRes.data) { const next = { ...DEFAULT_SETTINGS } as Record<string, string | number>; settingsRes.data.forEach((row: { key: string; value: string | number }) => { next[row.key] = row.value; }); setSettings(next as unknown as AppSettings); }
@@ -400,7 +409,7 @@ export default function AthleteStore() {
   }
 
   function requestUse(item: InventoryItem) {
-    if (item.gacha_prize_id || item.gacha_description != null) { setGachaItem(item); return; }
+    if (isGachaItem(item)) { setGachaItem(item); return; }
     if (item.gift_image_path) { setCostumeGift(item); return; }
     const product = products.find(candidate => candidate.id === item.product_id);
     if (product?.special_type === "lottery") {
@@ -457,7 +466,7 @@ export default function AthleteStore() {
     const data = await response.json(); if (!response.ok) { const message = data.error || "요청을 처리하지 못했습니다."; toast(message, "error"); if (action === "set_staff_role" || action === "delete_product") throw new Error(message); } else { toast(data.message || "저장했습니다."); await loadAll(); window.dispatchEvent(new CustomEvent("athlete-data-changed")); }
   }
 
-  async function logout() { if (supabase && !demo) await supabase.auth.signOut(); setDemo(false); setProfile(null); setCart([]); setInventory([]); setLogs([]); changeView("shop"); }
+  async function logout() { if (supabase && !demo) await supabase.auth.signOut(); setDemo(false); setProfile(null); setCart([]); setInventory([]); setGachaPrizes([]); setGachaCollection([]); setLogs([]); changeView("shop"); }
 
   if (busy) return <div className="loading-screen"><div className="brand-mark"><Dumbbell/></div><p>선수촌 시스템을 불러오는 중…</p></div>;
   if (!profile) return <Login onDemo={enterDemo}/>;
@@ -481,6 +490,8 @@ export default function AthleteStore() {
       {view === "locker" && <LockerView
         cart={cart}
         inventory={inventory}
+        prizes={gachaPrizes}
+        collection={gachaCollection}
         products={products}
         profile={profile}
         settings={settings}

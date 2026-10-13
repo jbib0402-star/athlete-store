@@ -224,9 +224,9 @@ export default function StoreActionEnhancer() {
     function annotateGiftInventory() {
       const activeInventory = inventory.filter(item => !item.used_at);
       const cards = Array.from(document.querySelectorAll<HTMLElement>(".inventory-card"));
-      cards.forEach((card, index) => {
+      cards.forEach(card => {
         card.querySelector(".gift-received-label")?.remove();
-        const item = activeInventory[index];
+        const item = activeInventory.find(item => item.id === card.dataset.inventoryId);
         if (!item?.gift_from_name) return;
         const label = document.createElement("span");
         label.className = "gift-received-label";
