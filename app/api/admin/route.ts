@@ -64,6 +64,30 @@ export async function POST(request: Request) {
     const { action, payload } = await request.json();
     if (!payload || typeof payload !== "object") return NextResponse.json({ error: "잘못된 요청입니다." }, { status: 400 });
 
+    if (action === "list_gacha_prizes") {
+      const { data, error } = await admin.from("gacha_prizes").select("*").order("created_at");
+      if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+      return NextResponse.json({ items: data });
+    }
+    if (action === "save_gacha_prize") {
+      const name = String(payload.name || "").trim();
+      const description = String(payload.description || "").trim();
+      const imageUrl = String(payload.image_url || "").trim();
+      const weight = Number(payload.weight);
+      const id = payload.id ? String(payload.id) : null;
+      let validUrl = imageUrl.startsWith("/gacha/") && !imageUrl.includes("..");
+      try { validUrl ||= ["https:", "http:"].includes(new URL(imageUrl).protocol); } catch {}
+      if (!name || name.length > 80 || description.length > 1000 || !validUrl || !Number.isInteger(weight) || weight < 1 || weight > 1000000 || typeof payload.is_active !== "boolean" ||
+          (id && !/^[0-9a-f-]{36}$/i.test(id))) return NextResponse.json({ error: "이름, 설명, 이미지 URL과 확률 비중을 확인해주세요." }, { status: 400 });
+      const record = { name, description, image_url: imageUrl, weight, is_active: payload.is_active };
+      const query = id ? admin.from("gacha_prizes").update(record).eq("id", id)
+        : admin.from("gacha_prizes").insert({ ...record, slug: `custom-${crypto.randomUUID()}` });
+      const { data, error } = await query.select("id").maybeSingle();
+      if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+      if (!data) return NextResponse.json({ error: "결과물을 찾을 수 없습니다." }, { status: 404 });
+      return NextResponse.json({ message: "뽑기 결과물을 저장했습니다." });
+    }
+
     if (action === "set_staff_role") {
       if (requester.role !== "admin") return NextResponse.json({ error: "스태프 권한은 관리자만 변경할 수 있습니다." }, { status: 403 });
       const userId = String(payload.user_id || "");

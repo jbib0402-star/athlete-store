@@ -24,6 +24,7 @@ export interface Product {
   is_active: boolean;
   is_consumable: boolean;
   is_gift_box?: boolean;
+  is_gacha?: boolean;
   gift_options?: string[];
   special_type?: "standard" | "lottery";
   created_at: string;
@@ -36,6 +37,8 @@ export interface CartItem {
 }
 
 export interface InventoryItem {
+  gacha_prize_id?: string | null;
+  gacha_description?: string | null;
   gift_image_path?: string | null;
   gift_choice?: string | null;
   gift_from_name?: string | null;
