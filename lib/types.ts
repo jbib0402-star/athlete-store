@@ -60,6 +60,7 @@ export interface PointLog {
 }
 
 export interface AppSettings {
+  signup_enabled: boolean;
   site_name: string;
   currency_name: string;
   welcome_points: number;
@@ -70,6 +71,7 @@ export interface AppSettings {
 }
 
 export const DEFAULT_SETTINGS: AppSettings = {
+  signup_enabled: false,
   site_name: "NATIONAL TRAINING CENTER",
   currency_name: "P",
   welcome_points: 1000,

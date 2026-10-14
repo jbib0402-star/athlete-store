@@ -1,6 +1,9 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
+import { SIGNUP_CLOSED_MESSAGE } from "@/lib/signup";
+
+export const dynamic = "force-dynamic";
 const STARTING_POINTS = 500;
 
 function adminClient() {
@@ -10,8 +13,21 @@ function adminClient() {
   return createClient(url, service, { auth: { autoRefreshToken: false, persistSession: false } });
 }
 
+async function signupEnabled(admin: ReturnType<typeof adminClient>) {
+  const { data, error } = await admin.from("app_settings").select("value").eq("key", "signup_enabled").maybeSingle();
+  if (error) throw new Error("회원가입 설정을 확인하지 못했습니다. 잠시 후 다시 시도해주세요.");
+  return data?.value === true;
+}
+
+export async function GET() {
+  try { return NextResponse.json({ enabled: await signupEnabled(adminClient()) }, { headers: { "Cache-Control": "no-store" } }); }
+  catch { return NextResponse.json({ enabled: false, error: "회원가입 상태를 확인하지 못했습니다." }, { status: 503, headers: { "Cache-Control": "no-store" } }); }
+}
+
 export async function POST(request: Request) {
   try {
+    const admin = adminClient();
+    if (!await signupEnabled(admin)) return NextResponse.json({ error: SIGNUP_CLOSED_MESSAGE }, { status: 403 });
     const body = await request.json();
     const username = String(body.username || "").trim().toLowerCase();
     const password = String(body.password || "");
@@ -27,8 +43,8 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "밴드에서 사용하는 닉네임을 40자 이내로 정확히 입력해주세요." }, { status: 400 });
     }
 
-    const admin = adminClient();
-    const { data: existing } = await admin.from("profiles").select("id").eq("username", username).maybeSingle();
+    const { data: existing, error: lookupError } = await admin.from("profiles").select("id").eq("username", username).maybeSingle();
+    if (lookupError) throw new Error("가입 정보를 확인하지 못했습니다.");
     if (existing) return NextResponse.json({ error: "이미 사용 중인 아이디입니다." }, { status: 409 });
 
     const domain = process.env.NEXT_PUBLIC_AUTH_EMAIL_DOMAIN || "athlete-store.local";
@@ -43,26 +59,13 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: message }, { status: 400 });
     }
 
-    const { error: profileError } = await admin.from("profiles").insert({
-      id: data.user.id,
-      username,
-      character_name: characterName,
-      sport: null,
-      points: STARTING_POINTS,
-      role: "member"
+    const { error: profileError } = await admin.rpc("register_self_signup", {
+      new_user_id: data.user.id, new_username: username, new_character_name: characterName
     });
-
     if (profileError) {
       await admin.auth.admin.deleteUser(data.user.id);
-      return NextResponse.json({ error: profileError.message }, { status: 400 });
+      return NextResponse.json({ error: profileError.message }, { status: profileError.message === SIGNUP_CLOSED_MESSAGE ? 403 : 400 });
     }
-
-    await admin.from("point_logs").insert({
-      user_id: data.user.id,
-      amount: STARTING_POINTS,
-      type: "welcome",
-      description: "가입 시작 포인트"
-    });
 
     return NextResponse.json({ message: "가입이 완료되었습니다.", points: STARTING_POINTS });
   } catch (error) {
