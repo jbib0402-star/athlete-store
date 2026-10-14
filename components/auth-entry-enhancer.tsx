@@ -1,7 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { getSupabaseBrowser, usernameToEmail } from "@/lib/supabase";
+
+import { SIGNUP_CLOSED_MESSAGE } from "@/lib/signup";
 
 export default function AuthEntryEnhancer() {
   const supabase = useMemo(() => getSupabaseBrowser(), []);
@@ -12,6 +14,25 @@ export default function AuthEntryEnhancer() {
   const [nickname, setNickname] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [signupEnabled, setSignupEnabled] = useState<boolean | null>(null);
+  const [signupStatusError, setSignupStatusError] = useState("");
+  const signupLock = useRef(false);
+  const refreshSignup = useCallback(async () => {
+    try {
+      const response = await fetch("/api/signup", { cache: "no-store" });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "회원가입 상태를 확인하지 못했습니다.");
+      setSignupEnabled(data.enabled === true); setSignupStatusError("");
+    } catch { setSignupEnabled(false); setSignupStatusError("회원가입 상태를 확인하지 못했습니다. 잠시 후 다시 확인해주세요."); }
+  }, []);
+  useEffect(() => {
+    if (!visible) return;
+    void refreshSignup();
+    const refresh = () => { void refreshSignup(); };
+    window.addEventListener("focus", refresh);
+    const timer = window.setInterval(refresh, 15000);
+    return () => { window.removeEventListener("focus", refresh); window.clearInterval(timer); };
+  }, [visible, refreshSignup]);
 
   useEffect(() => {
     const scan = () => setVisible(Boolean(document.querySelector(".login-page")));
@@ -36,32 +57,23 @@ export default function AuthEntryEnhancer() {
 
   async function signup(event: React.FormEvent) {
     event.preventDefault();
-    if (!supabase) return;
-    setBusy(true); setError("");
-    const cleanUsername = username.trim().toLowerCase();
-    const response = await fetch("/api/signup", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ username: cleanUsername, password, character_name: nickname })
-    });
-    const data = await response.json();
-    if (!response.ok) {
-      setError(data.error || "가입하지 못했습니다.");
-      setBusy(false);
-      return;
-    }
-
-    const { error: authError } = await supabase.auth.signInWithPassword({
-      email: usernameToEmail(cleanUsername),
-      password
-    });
-    if (authError) {
-      setError("가입은 완료됐지만 자동 로그인에 실패했습니다. 로그인 탭에서 다시 로그인해주세요.");
-      setMode("login");
-      setBusy(false);
-      return;
-    }
-    setBusy(false);
+    if (!supabase || signupEnabled !== true || signupLock.current) return;
+    signupLock.current = true; setBusy(true); setError("");
+    try {
+      const cleanUsername = username.trim().toLowerCase();
+      const response = await fetch("/api/signup", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username: cleanUsername, password, character_name: nickname })
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        if (response.status === 403) setSignupEnabled(false);
+        throw new Error(data.error || "가입하지 못했습니다.");
+      }
+      const { error: authError } = await supabase.auth.signInWithPassword({ email: usernameToEmail(cleanUsername), password });
+      if (authError) { setError("가입은 완료됐지만 자동 로그인에 실패했습니다. 로그인 탭에서 다시 로그인해주세요."); setMode("login"); }
+    } catch (failure) { setError(failure instanceof Error ? failure.message : "가입하지 못했습니다. 잠시 후 다시 시도해주세요."); }
+    finally { signupLock.current = false; setBusy(false); }
   }
 
   if (!visible || !supabase) return null;
@@ -71,13 +83,13 @@ export default function AuthEntryEnhancer() {
       <section className="auth-entry-brand">
         <div className="auth-entry-kicker">NATIONAL TRAINING CENTER</div>
         <h1>선수촌 매점</h1>
-        <p>로그인하거나 새 계정을 만들어 바로 이용하세요.</p>
+        <p>{signupEnabled === true ? "로그인하거나 새 계정을 만들어 바로 이용하세요." : "기존 계정으로 로그인해 이용하세요."}</p>
       </section>
 
       <section className="auth-entry-card">
         <div className="auth-entry-tabs">
           <button className={mode === "login" ? "active" : ""} onClick={() => { setMode("login"); setError(""); }}>로그인</button>
-          <button className={mode === "signup" ? "active" : ""} onClick={() => { setMode("signup"); setError(""); }}>회원가입</button>
+          <button className={mode === "signup" ? "active" : ""} onClick={() => { setMode("signup"); setError(""); setSignupEnabled(null); void refreshSignup(); }}>회원가입</button>
         </div>
 
         {mode === "login" ? <form onSubmit={login} className="auth-entry-form">
@@ -89,7 +101,7 @@ export default function AuthEntryEnhancer() {
           <label>비밀번호<input value={password} onChange={e => setPassword(e.target.value)} type="password" autoComplete="current-password" placeholder="8자 이상" required /></label>
           {error && <p className="auth-entry-error">{error}</p>}
           <button className="auth-entry-submit" disabled={busy}>{busy ? "로그인 중…" : "로그인"}</button>
-        </form> : <form onSubmit={signup} className="auth-entry-form">
+        </form> : signupEnabled !== true ? <div className="auth-entry-form" role="status"><h2>회원가입</h2><p>{signupEnabled === null ? "회원가입 가능 여부를 확인하고 있어요…" : signupStatusError || SIGNUP_CLOSED_MESSAGE}</p><button type="button" className="auth-entry-submit" onClick={() => void refreshSignup()}>가입 상태 다시 확인</button></div> : <form onSubmit={signup} className="auth-entry-form">
           <div>
             <h2>회원가입</h2>
             <p>직접 계정을 만들면 <strong>시작 포인트 500P</strong>가 자동 지급됩니다.</p>
