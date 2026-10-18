@@ -64,6 +64,31 @@ export async function POST(request: Request) {
     const { action, payload } = await request.json();
     if (!payload || typeof payload !== "object") return NextResponse.json({ error: "잘못된 요청입니다." }, { status: 400 });
 
+    if (action === "list_member_point_logs") {
+      const userId = String(payload.user_id || "");
+      const page = payload.page ?? 1;
+      const filter = payload.filter ?? "all";
+      if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(userId) ||
+          !Number.isSafeInteger(page) || page < 1 || page > 1000000 ||
+          !["all", "spent", "earned"].includes(filter)) {
+        return NextResponse.json({ error: "회원과 조회 조건을 확인해주세요." }, { status: 400 });
+      }
+      const { data: member, error: memberError } = await admin.from("profiles")
+        .select("id,username,character_name,points").eq("id", userId).maybeSingle();
+      if (memberError) return NextResponse.json({ error: "회원 정보를 불러오지 못했습니다." }, { status: 500 });
+      if (!member) return NextResponse.json({ error: "회원을 찾을 수 없습니다." }, { status: 404 });
+      const pageSize = 20;
+      const offset = (page - 1) * pageSize;
+      let query = admin.from("point_logs").select("id,amount,type,description,created_at").eq("user_id", userId);
+      if (filter === "spent") query = query.lt("amount", 0);
+      if (filter === "earned") query = query.gt("amount", 0);
+      const { data: rows, error } = await query.order("created_at", { ascending: false })
+        .order("id", { ascending: false }).range(offset, offset + pageSize);
+      if (error) return NextResponse.json({ error: "포인트 내역을 불러오지 못했습니다." }, { status: 500 });
+      return NextResponse.json({ member, logs: (rows || []).slice(0, pageSize), page,
+        hasMore: (rows || []).length > pageSize }, { headers: { "Cache-Control": "no-store" } });
+    }
+
     if (action === "list_gacha_prizes") {
       const { data, error } = await admin.from("gacha_prizes").select("*").order("created_at");
       if (error) return NextResponse.json({ error: error.message }, { status: 400 });

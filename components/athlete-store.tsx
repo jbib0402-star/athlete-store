@@ -8,6 +8,7 @@ import {
   UserRound, UsersRound, WalletCards, X
 } from "lucide-react";
 import { fetchAllInventory } from "@/lib/inventory";
+import MemberPointHistory from "@/components/member-point-history";
 import SignupAvailabilityControl from "@/components/signup-availability-control";
 import GachaCollectionAlbum from "@/components/gacha-collection-album";
 import { isGachaItem, type GachaPrize, type GachaCollectionRecord } from "@/lib/gacha-collection";
@@ -185,6 +186,7 @@ function AdminView({ currentRole, profiles, products, settings, currency, onAdmi
   }
   const [productFile, setProductFile] = useState<File | undefined>();
   const [settingsForm, setSettingsForm] = useState(settings);
+  const [historyMember, setHistoryMember] = useState<Profile | null>(null);
   const [memberSearch, setMemberSearch] = useState("");
   const [memberPageSize, setMemberPageSize] = useState(20);
   const [memberPage, setMemberPage] = useState(1);
@@ -215,6 +217,7 @@ function AdminView({ currentRole, profiles, products, settings, currency, onAdmi
   async function createProduct(e: React.FormEvent) { e.preventDefault(); await onAdmin("create_product", { ...productForm, stock: productForm.stock === "" ? null : Number(productForm.stock), purchase_limit: productForm.purchase_limit === "" ? null : Number(productForm.purchase_limit) }, productFile); setProductForm({ name: "", description: "", price: 0, category: "식품", stock: "", purchase_limit: "", is_consumable: true, image_url: "" }); setProductFile(undefined); }
 
   return <div className="admin-page">
+    {historyMember && <MemberPointHistory key={historyMember.id} member={historyMember} currency={currency} onClose={() => setHistoryMember(null)}/>}
     <section className="admin-banner"><div><div className="eyebrow light">ADMIN CONTROL</div><h1>운영 관리</h1><p>회원, 포인트, 상품과 사이트 운영 규칙을 관리합니다.</p></div><ShieldCheck size={48}/></section>
     <div className="admin-tabs"><button className={tab === "members" ? "active" : ""} onClick={() => setTab("members")}><UsersRound/>회원 · 포인트</button><button className={tab === "products" ? "active" : ""} onClick={() => setTab("products")}><Store/>상품 관리</button><button className={tab === "settings" ? "active" : ""} onClick={() => setTab("settings")}><Settings/>운영 설정</button>{currentRole === "admin" && <button className={tab === "staff" ? "active" : ""} onClick={() => setTab("staff")}><ShieldCheck/>스태프 권한</button>}</div>
     {tab === "staff" && currentRole === "admin" && <section className="panel staff-permissions">
@@ -231,7 +234,7 @@ function AdminView({ currentRole, profiles, products, settings, currency, onAdmi
         <label>페이지당 표시<select value={memberPageSize} onChange={event => { setMemberPageSize(Number(event.target.value)); setMemberPage(1); }}><option value={10}>10명씩</option><option value={20}>20명씩</option></select></label>
       </div>
       <p className="member-list-summary" role="status">{filteredMembers.length ? `${filteredMembers.length}명 중 ${memberOffset + 1}–${Math.min(memberOffset + memberPageSize, filteredMembers.length)}명 표시` : "검색 결과가 없습니다."}</p>
-      <div className="member-list">{visibleMembers.map(member => <div className="member-row" key={member.id}><div className="avatar-small">{member.avatar_url ? <img src={member.avatar_url} alt=""/> : member.character_name.slice(0, 1)}</div><div><strong>{member.character_name}{member.role !== "member" && <small className="admin-badge">{member.role === "admin" ? "관리자" : "스태프"}</small>}</strong><span>@{member.username} · {member.sport || "종목 미등록"}</span></div><b>{formatPoints(member.points)} {currency}</b><div className="point-adjust"><input type="number" placeholder="포인트" value={adjustments[member.id] || ""} onChange={e => setAdjustments(v => ({ ...v, [member.id]: e.target.value }))}/><button aria-label="포인트 지급" onClick={() => onAdmin("adjust_points", { user_id: member.id, amount: Math.abs(Number(adjustments[member.id] || 0)), description: "운영진 지급" })}><Plus/></button><button aria-label="포인트 차감" onClick={() => onAdmin("adjust_points", { user_id: member.id, amount: -Math.abs(Number(adjustments[member.id] || 0)), description: "운영진 차감" })}><Minus/></button></div></div>)}</div>
+      <div className="member-list">{visibleMembers.map(member => <div className="member-row" key={member.id}><div className="avatar-small">{member.avatar_url ? <img src={member.avatar_url} alt=""/> : member.character_name.slice(0, 1)}</div><div><button type="button" className="member-history-account" aria-label={`${member.character_name} 포인트 내역 보기`} onClick={() => setHistoryMember(member)}><strong>{member.character_name}{member.role !== "member" && <small className="admin-badge">{member.role === "admin" ? "관리자" : "스태프"}</small>}</strong><span>@{member.username} · {member.sport || "종목 미등록"}</span><small>포인트 내역 보기</small></button></div><b>{formatPoints(member.points)} {currency}</b><div className="point-adjust"><input type="number" placeholder="포인트" value={adjustments[member.id] || ""} onChange={e => setAdjustments(v => ({ ...v, [member.id]: e.target.value }))}/><button aria-label="포인트 지급" onClick={() => onAdmin("adjust_points", { user_id: member.id, amount: Math.abs(Number(adjustments[member.id] || 0)), description: "운영진 지급" })}><Plus/></button><button aria-label="포인트 차감" onClick={() => onAdmin("adjust_points", { user_id: member.id, amount: -Math.abs(Number(adjustments[member.id] || 0)), description: "운영진 차감" })}><Minus/></button></div></div>)}</div>
       {filteredMembers.length > 0 && <nav className="member-pagination" aria-label="회원 목록 페이지">
         <button type="button" className="button outline small" disabled={currentMemberPage === 1} onClick={() => setMemberPage(currentMemberPage - 1)}>이전</button>
         {memberPageButtons.map(page => <button type="button" key={page} className={page === currentMemberPage ? "button primary small" : "button outline small"} aria-label={`${page}페이지`} aria-current={page === currentMemberPage ? "page" : undefined} onClick={() => setMemberPage(page)}>{page}</button>)}

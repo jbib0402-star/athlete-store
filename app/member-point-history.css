@@ -1,0 +1,25 @@
+.member-history-account{display:grid;gap:4px;border:0;background:transparent;padding:8px 0;text-align:left;color:inherit;cursor:pointer;min-height:44px;width:100%}
+.member-history-account:hover strong{color:#24649c;text-decoration:underline}
+.member-history-account>small{color:#24649c;font-size:.68rem;font-weight:700}
+.member-history-account:focus-visible{outline:2px solid #24649c;outline-offset:3px;border-radius:4px}
+.member-point-dialog{border:0;border-top:5px solid #ea4d3d;width:min(680px,calc(100vw - 28px));max-height:calc(100dvh - 28px);padding:28px;color:#142130;background:#fff;overflow:auto;box-shadow:0 28px 80px #0004}
+.member-point-dialog::backdrop{background:#071422a3;backdrop-filter:blur(3px)}
+.member-point-heading{display:flex;align-items:flex-start;justify-content:space-between;gap:14px}
+.member-point-heading h2{margin:8px 0;font-size:1.35rem;overflow-wrap:anywhere}
+.member-point-heading p{margin:0;color:#73808c;font-size:.76rem}
+.member-point-heading .icon-button{flex:none}
+.member-point-balance{display:flex;justify-content:space-between;align-items:center;gap:12px;background:#eef3f7;padding:16px;margin:20px 0;color:#173b61;flex-wrap:wrap}
+.member-point-balance span{font-size:.8rem}.member-point-balance strong{font-size:1.1rem}
+.member-point-controls{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;margin-bottom:18px}
+.member-point-controls label{display:grid;gap:6px;font-size:.76rem;font-weight:700;max-width:65%}
+.member-point-controls select{min-height:42px;width:100%}
+.member-point-content{min-height:120px}.member-point-content>p,.member-point-content>div{font-size:.84rem;color:#73808c;padding:18px 0}
+.member-point-logs{list-style:none;margin:0;padding:0}
+.member-point-logs li{display:flex;justify-content:space-between;align-items:center;gap:16px;border-top:1px solid #e7edf2;padding:14px 0}
+.member-point-logs li>div{min-width:0}.member-point-kind{font-size:.68rem;color:#587087}
+.member-point-logs p{font-size:.84rem;line-height:1.6;margin:5px 0;overflow-wrap:anywhere;white-space:pre-wrap}
+.member-point-logs time{font-size:.7rem;color:#73808c}.member-point-logs li>strong{font-size:.86rem;white-space:nowrap}
+.member-point-logs .spent{color:#b43f34}.member-point-logs .earned{color:#24649c}
+.member-point-pagination{display:flex;align-items:center;justify-content:space-between;gap:8px;border-top:1px solid #e7edf2;padding-top:16px;margin-top:8px}
+.member-point-pagination span{font-size:.74rem;color:#73808c}
+@media(max-width:600px){.member-point-dialog{padding:20px}.member-point-heading h2{font-size:1.15rem}.member-point-logs li{gap:8px}.member-point-logs li>strong{font-size:.77rem}}
