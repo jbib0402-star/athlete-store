@@ -7,7 +7,11 @@ import type { PointLog, Profile } from "@/lib/types";
 
 type Filter = "all" | "spent" | "earned";
 type NicknameLog = { id: string; old_name: string; new_name: string; created_at: string };
-type Result = { member: Pick<Profile, "id" | "username" | "character_name" | "points">; logs: (PointLog | NicknameLog)[]; hasMore: boolean };
+type NicknameObservation = { id: string; record_kind: "observation"; nickname: string; first_seen: string; last_seen: string; sources: string[]; created_at: string };
+function isNicknameObservation(log: PointLog | NicknameLog | NicknameObservation): log is NicknameObservation {
+  return "record_kind" in log && log.record_kind === "observation";
+}
+type Result = { member: Pick<Profile, "id" | "username" | "character_name" | "points">; logs: (PointLog | NicknameLog | NicknameObservation)[]; hasMore: boolean };
 const labels: Record<string, string> = {
   purchase: "상품 구매", gift: "선물", transfer_out: "양도 보냄", transfer_in: "양도 받음",
   attendance: "출석", training: "훈련", welcome: "가입 축하", admin: "운영진 조정",
@@ -79,10 +83,10 @@ export default function MemberPointHistory({ member, currency, onClose }: { memb
       {!isNicknameHistory && <label>내역 구분<select value={filter} onChange={event => { setFilter(event.target.value as Filter); setPage(1); }}><option value="all">전체 내역</option><option value="spent">사용·차감 내역</option><option value="earned">적립·지급 내역</option></select></label>}
       <button type="button" className="button outline small" disabled={loading} onClick={() => { setPage(1); setReload(value => value + 1); }}>새로고침</button>
     </div>
-    {isNicknameHistory && <p className="member-nickname-note">이 기능 적용 후 변경된 닉네임부터 기록됩니다.</p>}
+    {isNicknameHistory && <p className="member-nickname-note">기능 이전 닉네임은 남아 있는 선물·양도 기록에서 확인된 이름만 표시합니다. 활동 기록 날짜는 실제 닉네임 변경 시각과 다릅니다.</p>}
     <div className="member-point-content" aria-busy={loading}>
       {loading ? <p role="status">회원 내역을 불러오는 중…</p> : error ? <div role="alert"><p>{error}</p><button type="button" className="button outline small" onClick={() => setReload(value => value + 1)}>다시 시도</button></div> : result?.logs.length ? <ul className="member-point-logs">{result.logs.map(log => <li key={log.id}>
-        {"old_name" in log ? <div className="member-nickname-change"><span className="member-point-kind">닉네임 변경</span><p><span>{log.old_name}</span><span aria-label="에서"> → </span><strong>{log.new_name}</strong></p><time dateTime={log.created_at}>{dateFormat.format(new Date(log.created_at))}</time></div> : <>
+        {isNicknameObservation(log) ? <div className="member-nickname-change member-nickname-observation"><span className="member-point-kind">과거 기록에서 확인된 닉네임</span><p><strong>{log.nickname}</strong></p><span className="member-nickname-evidence">확인 근거: {log.sources.map(source => source === "gift" ? "선물 기록" : "양도 기록").join(" · ")}</span><p className="member-nickname-evidence">기록 확인일: <time dateTime={log.first_seen}>{dateFormat.format(new Date(log.first_seen))}</time>{log.last_seen !== log.first_seen && <> ~ <time dateTime={log.last_seen}>{dateFormat.format(new Date(log.last_seen))}</time></>}</p><span className="member-nickname-evidence">실제 변경 시각은 기록되지 않았습니다.</span></div> : "old_name" in log ? <div className="member-nickname-change"><span className="member-point-kind">닉네임 변경</span><p><span>{log.old_name}</span><span aria-label="에서"> → </span><strong>{log.new_name}</strong></p><time dateTime={log.created_at}>{dateFormat.format(new Date(log.created_at))}</time></div> : <>
           <div><span className="member-point-kind">{labels[log.type] || (log.amount < 0 ? "사용·차감" : "적립·지급")}</span><p>{log.description || "포인트 변동"}</p><time dateTime={log.created_at}>{dateFormat.format(new Date(log.created_at))}</time></div>
           <strong className={log.amount < 0 ? "spent" : "earned"}>{log.amount > 0 ? "+" : ""}{numberFormat.format(log.amount)} {currency}</strong>
         </>}
