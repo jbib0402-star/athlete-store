@@ -88,7 +88,7 @@ test('nickname history is operator-only, member-scoped and paginated without poi
     const result = await response.json();
     assert.equal(result.logs.length, 20);
     assert.equal(result.hasMore, true);
-    const ops = f.calls.find(call => call.table === 'nickname_history').operations;
+    const ops = f.calls.find(call => call.table === 'member_nickname_records').operations;
     assert.deepEqual(ops.find(op => op[0] === 'eq'), ['eq', 'user_id', f.member.id]);
     assert.deepEqual(ops.find(op => op[0] === 'range'), ['range', 20, 40]);
     assert.equal(ops.some(op => op[0] === 'lt' || op[0] === 'gt'), false);
@@ -97,10 +97,23 @@ test('nickname history is operator-only, member-scoped and paginated without poi
   for (const [options, token, status] of [[{}, false, 401], [{ signedIn: false }, true, 401], [{ role: 'member' }, true, 403]]) {
     const f = fixture(options);
     assert.equal((await f.request({}, token, 'list_member_nickname_history')).status, status);
-    assert.equal(f.calls.some(call => call.table === 'nickname_history'), false);
+    assert.equal(f.calls.some(call => call.table === 'member_nickname_records'), false);
   }
 });
 test('nickname history rejects invalid targets and handles missing accounts', async () => {
   assert.equal((await fixture().request({ user_id: 'bad' }, true, 'list_member_nickname_history')).status, 400);
   assert.equal((await fixture({ missing: true }).request({}, true, 'list_member_nickname_history')).status, 404);
+});
+
+test('recovered historical names retain observation dates without inventing rename events', async () => {
+  const observation = { id: 'old-record', record_kind: 'observation', nickname: '이전이름', old_name: null, new_name: null, created_at: '2026-10-10T03:00:00Z', first_seen: '2026-10-09T03:00:00Z', last_seen: '2026-10-10T03:00:00Z', sources: ['gift'] };
+  const f = fixture({ rows: [observation] });
+  const response = await f.request({}, true, 'list_member_nickname_history');
+  assert.equal(response.status, 200);
+  const result = await response.json();
+  assert.deepEqual(result.logs[0], observation);
+  assert.equal(result.hasMore, false);
+  assert.equal(result.logs[0].new_name, null);
+  assert.equal(f.calls.some(call => call.table === 'nickname_observations'), false);
+  assert.ok(f.calls.find(call => call.table === 'member_nickname_records').operations.find(op => op[0] === 'select')[1].includes('record_kind,nickname,first_seen,last_seen,sources'));
 });

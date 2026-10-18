@@ -25,3 +25,5 @@
 @media(max-width:600px){.member-point-dialog{padding:20px}.member-point-heading h2{font-size:1.15rem}.member-point-logs li{gap:8px}.member-point-logs li>strong{font-size:.77rem}}
 
 .member-history-sections{display:flex;gap:8px;margin:20px 0 0}.member-history-sections button{flex:1;min-height:44px;border:1px solid #dce3e9;border-radius:6px;background:#fff;color:#587087;font-size:.82rem;font-weight:700;padding:10px}.member-history-sections button[aria-pressed=true]{background:#173b61;border-color:#173b61;color:#fff}.member-nickname-note{color:#73808c;font-size:.76rem;line-height:1.6}.member-nickname-change{width:100%}.member-nickname-change p{display:flex;flex-wrap:wrap;gap:4px}.member-nickname-change p>span,.member-nickname-change p>strong{overflow-wrap:anywhere;max-width:100%}
+
+.member-nickname-observation{padding:12px;border-radius:6px;background:#f3f6f8}.member-nickname-evidence,.member-nickname-change p.member-nickname-evidence{display:block;color:#73808c;font-size:.72rem;line-height:1.6}
