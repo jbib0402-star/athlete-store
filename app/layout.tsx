@@ -25,6 +25,7 @@ import "./auth-entry.css";
 import "./timed-effects.css";
 import "./catalog-tools.css";
 import "./admin-maintenance.css";
+import "./member-point-history.css";
 import "./admin-effects.css";
 import "./profile-history.css";
 import "./lottery.css";
