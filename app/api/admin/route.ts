@@ -64,7 +64,8 @@ export async function POST(request: Request) {
     const { action, payload } = await request.json();
     if (!payload || typeof payload !== "object") return NextResponse.json({ error: "잘못된 요청입니다." }, { status: 400 });
 
-    if (action === "list_member_point_logs") {
+    if (action === "list_member_point_logs" || action === "list_member_nickname_history") {
+      const isNicknameHistory = action === "list_member_nickname_history";
       const userId = String(payload.user_id || "");
       const page = payload.page ?? 1;
       const filter = payload.filter ?? "all";
@@ -79,12 +80,13 @@ export async function POST(request: Request) {
       if (!member) return NextResponse.json({ error: "회원을 찾을 수 없습니다." }, { status: 404 });
       const pageSize = 20;
       const offset = (page - 1) * pageSize;
-      let query = admin.from("point_logs").select("id,amount,type,description,created_at").eq("user_id", userId);
-      if (filter === "spent") query = query.lt("amount", 0);
-      if (filter === "earned") query = query.gt("amount", 0);
+      let query = admin.from(isNicknameHistory ? "nickname_history" : "point_logs")
+        .select(isNicknameHistory ? "id,old_name,new_name,created_at" : "id,amount,type,description,created_at").eq("user_id", userId);
+      if (!isNicknameHistory && filter === "spent") query = query.lt("amount", 0);
+      if (!isNicknameHistory && filter === "earned") query = query.gt("amount", 0);
       const { data: rows, error } = await query.order("created_at", { ascending: false })
         .order("id", { ascending: false }).range(offset, offset + pageSize);
-      if (error) return NextResponse.json({ error: "포인트 내역을 불러오지 못했습니다." }, { status: 500 });
+      if (error) return NextResponse.json({ error: "회원 내역을 불러오지 못했습니다." }, { status: 500 });
       return NextResponse.json({ member, logs: (rows || []).slice(0, pageSize), page,
         hasMore: (rows || []).length > pageSize }, { headers: { "Cache-Control": "no-store" } });
     }

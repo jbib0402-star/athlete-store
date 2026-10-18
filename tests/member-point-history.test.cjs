@@ -30,7 +30,7 @@ function fixture({ role = 'admin', signedIn = true, missing = false, failure = f
     if (name === '@supabase/supabase-js') return { createClient };
     throw new Error(name);
   } });
-  const request = (payload = {}, token = true) => exports.POST(new Request('https://store.test/api/admin', { method: 'POST', headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: 'Bearer test' } : {}) }, body: JSON.stringify({ action: 'list_member_point_logs', payload: { user_id: member.id, ...payload } }) }));
+  const request = (payload = {}, token = true, action = "list_member_point_logs") => exports.POST(new Request('https://store.test/api/admin', { method: 'POST', headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: 'Bearer test' } : {}) }, body: JSON.stringify({ action, payload: { user_id: member.id, ...payload } }) }));
   return { request, calls, member };
 }
 
@@ -76,4 +76,31 @@ test('missing member returns 404 and query errors do not expose database details
   const response = await fixture({ failure: true }).request();
   assert.equal(response.status, 500);
   assert.doesNotMatch(await response.text(), /private db details/);
+});
+
+
+test('nickname history is operator-only, member-scoped and paginated without point filters', async () => {
+  for (const role of ['admin', 'staff']) {
+    const rows = Array.from({ length: 21 }, (_, id) => ({ id, old_name: '이전', new_name: '변경', created_at: '2026-10-18T05:00:00Z' }));
+    const f = fixture({ role, rows });
+    const response = await f.request({ page: 2, filter: 'spent' }, true, 'list_member_nickname_history');
+    assert.equal(response.status, 200);
+    const result = await response.json();
+    assert.equal(result.logs.length, 20);
+    assert.equal(result.hasMore, true);
+    const ops = f.calls.find(call => call.table === 'nickname_history').operations;
+    assert.deepEqual(ops.find(op => op[0] === 'eq'), ['eq', 'user_id', f.member.id]);
+    assert.deepEqual(ops.find(op => op[0] === 'range'), ['range', 20, 40]);
+    assert.equal(ops.some(op => op[0] === 'lt' || op[0] === 'gt'), false);
+    assert.equal(f.calls.some(call => call.table === 'point_logs'), false);
+  }
+  for (const [options, token, status] of [[{}, false, 401], [{ signedIn: false }, true, 401], [{ role: 'member' }, true, 403]]) {
+    const f = fixture(options);
+    assert.equal((await f.request({}, token, 'list_member_nickname_history')).status, status);
+    assert.equal(f.calls.some(call => call.table === 'nickname_history'), false);
+  }
+});
+test('nickname history rejects invalid targets and handles missing accounts', async () => {
+  assert.equal((await fixture().request({ user_id: 'bad' }, true, 'list_member_nickname_history')).status, 400);
+  assert.equal((await fixture({ missing: true }).request({}, true, 'list_member_nickname_history')).status, 404);
 });
