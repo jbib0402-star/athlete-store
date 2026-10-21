@@ -14,9 +14,12 @@ function adminClient() {
 }
 
 async function signupEnabled(admin: ReturnType<typeof adminClient>) {
-  const { data, error } = await admin.from("app_settings").select("value").eq("key", "signup_enabled").maybeSingle();
-  if (error) throw new Error("회원가입 설정을 확인하지 못했습니다. 잠시 후 다시 시도해주세요.");
-  return data?.value === true;
+  const [signup, access] = await Promise.all([
+    admin.from("app_settings").select("value").eq("key", "signup_enabled").maybeSingle(),
+    admin.from("app_settings").select("value").eq("key", "operator_only_access").maybeSingle()
+  ]);
+  if (signup.error || access.error) throw new Error("회원가입 설정을 확인하지 못했습니다. 잠시 후 다시 시도해주세요.");
+  return signup.data?.value === true && access.data?.value !== true;
 }
 
 export async function GET() {

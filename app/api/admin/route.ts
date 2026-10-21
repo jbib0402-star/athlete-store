@@ -291,6 +291,13 @@ export async function POST(request: Request) {
       return NextResponse.json({ message: `‘${data.name}’ 상품을 삭제했습니다.` });
     }
 
+    if (action === "set_operator_only_access") {
+      if (typeof payload.enabled !== "boolean") return NextResponse.json({ error: "접속 설정을 확인해주세요." }, { status: 400 });
+      const { error } = await admin.from("app_settings").upsert({ key: "operator_only_access", value: payload.enabled }, { onConflict: "key" });
+      if (error) return NextResponse.json({ error: "접속 설정을 저장하지 못했습니다." }, { status: 500 });
+      return NextResponse.json({ message: payload.enabled ? "운영진만 접속할 수 있도록 설정했습니다." : "일반 회원 접속을 허용했습니다." });
+    }
+
     if (action === "set_signup_enabled") {
       if (typeof payload.enabled !== "boolean") return NextResponse.json({ error: "회원가입 설정을 확인해주세요." }, { status: 400 });
       const { error } = await admin.from("app_settings").upsert({ key: "signup_enabled", value: payload.enabled }, { onConflict: "key" });

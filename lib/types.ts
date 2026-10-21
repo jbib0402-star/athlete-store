@@ -60,6 +60,7 @@ export interface PointLog {
 }
 
 export interface AppSettings {
+  operator_only_access: boolean;
   signup_enabled: boolean;
   site_name: string;
   currency_name: string;
@@ -71,6 +72,7 @@ export interface AppSettings {
 }
 
 export const DEFAULT_SETTINGS: AppSettings = {
+  operator_only_access: false,
   signup_enabled: false,
   site_name: "NATIONAL TRAINING CENTER",
   currency_name: "P",
